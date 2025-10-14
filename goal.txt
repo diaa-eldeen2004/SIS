@@ -1,0 +1,93 @@
+SIS Full Backend Migration Plan (PHP & MySQL)
+============================================
+
+Goal: Transform the current frontend-only SIS into a full-stack web application using PHP for backend logic and MySQL for persistent data storage.
+
+Migration Steps & Structure
+--------------------------
+
+1. **Backend Setup**
+   - Create `backend/` directory for all server-side code
+   - Set up `config/` for database connection and environment variables
+   - Add `public/` for entry points (index.php, api.php)
+   - Add `vendor/` for Composer dependencies
+
+2. **Database Design**
+   - Create `database/` directory for SQL migrations and seeders
+   - Design tables: users, roles, permissions, students, courses, enrollments, grades, attendance, notifications, reports
+   - Add ERD diagram file (e.g., `database/ERD.png`)
+
+3. **Core Backend Files**
+   - `backend/config/db.php` (database connection)
+   - `backend/config/app.php` (app settings)
+   - `backend/public/index.php` (main entry)
+   - `backend/public/api.php` (API entry)
+   - `backend/routes/` (route definitions)
+   - `backend/controllers/` (business logic)
+   - `backend/models/` (ORM/data models)
+   - `backend/views/` (server-rendered HTML, if needed)
+   - `backend/middleware/` (auth, validation, etc.)
+   - `backend/utils/` (helpers)
+
+4. **Authentication & Authorization**
+   - `backend/controllers/AuthController.php`
+   - `backend/middleware/AuthMiddleware.php`
+   - `backend/models/User.php`, `Role.php`, `Permission.php`
+
+5. **Feature Modules**
+   - Students: `backend/controllers/StudentController.php`, `backend/models/Student.php`
+   - Courses: `backend/controllers/CourseController.php`, `backend/models/Course.php`
+   - Enrollments: `backend/controllers/EnrollmentController.php`, `backend/models/Enrollment.php`
+   - Grades: `backend/controllers/GradeController.php`, `backend/models/Grade.php`
+   - Attendance: `backend/controllers/AttendanceController.php`, `backend/models/Attendance.php`
+   - Reports: `backend/controllers/ReportController.php`, `backend/models/Report.php`
+   - Notifications: `backend/controllers/NotificationController.php`, `backend/models/Notification.php`
+   - Admin: `backend/controllers/AdminController.php`
+
+6. **API Structure**
+   - RESTful endpoints in `backend/public/api.php`
+   - Route files in `backend/routes/`
+   - JSON responses for frontend consumption
+
+7. **Frontend Integration**
+   - Update AJAX calls in frontend JS to hit PHP API endpoints
+   - Add `frontend/` directory for all client-side code (migrate from current structure)
+
+8. **Testing & Utilities**
+   - `backend/tests/` for unit/integration tests
+   - `backend/utils/` for helpers (validation, formatting)
+
+9. **Deployment & Documentation**
+   - `docs/` for setup, API docs, and migration guides
+   - `.env.example` for environment variables
+   - `README.md` for backend instructions
+
+---
+
+**File/Directory Structure Overview**
+
+- backend/
+  - config/
+    - db.php
+    - app.php
+  - public/
+    - index.php
+    - api.php
+  - routes/
+  - controllers/
+  - models/
+  - views/
+  - middleware/
+  - utils/
+  - tests/
+- database/
+  - migrations.sql
+  - seeders.sql
+  - ERD.png
+- frontend/
+  - (migrated from current sis-frontend/)
+- docs/
+  - API.md
+  - SETUP.md
+- .env.example
+- README.md

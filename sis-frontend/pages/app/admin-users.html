@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Admin Users</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <header class="navbar" role="navigation" aria-label="Primary">
+    <div class="navbar-inner">
+      <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="primary-menu">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+      <div class="brand">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <nav id="primary-menu" class="menu">
+        <ul class="menu-list" aria-label="Main sections">
+          <li><button class="btn btn-nav" data-href="dashboard.html">Dashboard</button></li>
+          <li><button class="btn btn-nav" data-href="attendance.html">Attendance</button></li>
+          <li><button class="btn btn-nav" data-href="reports.html">Reports</button></li>
+          <li><button class="btn btn-nav" data-href="notifications.html">Notifications</button></li>
+          <li class="menu-dropdown" id="manage-dropdown">
+            <button id="manage-toggle" class="btn btn-nav">Manage</button>
+            <div class="menu-dropdown-panel">
+              <button class="btn btn-compact" data-href="settings.html">Settings</button>
+              <button class="btn btn-compact" data-href="students.html">Students</button>
+              <button class="btn btn-compact" data-href="courses.html">Courses</button>
+              <button class="btn btn-compact" data-href="enrollments.html">Enrollments</button>
+              <button class="btn btn-compact" data-href="grades.html">Grades</button>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h1>Admin • Users</h1>
+      <p class="muted">Manage users, roles, and statuses.</p>
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="actions" style="justify-content: space-between;">
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" id="btn-new-user">New User</button>
+          <button class="btn btn-outline" id="btn-import">Import CSV</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input class="input" placeholder="Search users…" style="min-width:260px;" />
+          <select class="input">
+            <option>Role: Any</option>
+            <option>Student</option>
+            <option>Teacher</option>
+            <option>Admin</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+            <tr>
+              <th><button class="btn-ghost" onclick="sortTable(0)">ID</button></th>
+              <th><button class="btn-ghost" onclick="sortTable(1)">Name</button></th>
+              <th><button class="btn-ghost" onclick="sortTable(2)">Email</button></th>
+              <th><button class="btn-ghost" onclick="sortTable(3)">Role</button></th>
+              <th><button class="btn-ghost" onclick="sortTable(4)">Status</button></th>
+              <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Loading skeleton -->
+            <tr id="skeleton-row" style="display:none;">
+              <td colspan="6"><div class="muted">Loading users...</div></td>
+            </tr>
+            <!-- Empty state -->
+            <tr id="empty-row" style="display:none;">
+              <td colspan="6"><div class="muted">No users found.</div></td>
+            </tr>
+            <!-- Example row -->
+            <tr>
+              <td>USR-0001</td><td>Jane Doe</td><td>jane.doe@example.edu</td><td>Admin</td><td><span class="badge badge-success">Active</span></td>
+              <td>
+                <button class="btn btn-compact" data-action="edit">Edit</button>
+                <button class="btn btn-compact" data-action="disable">Disable</button>
+              </td>
+            </tr>
+        </tbody>
+      </table>
+        <!-- Column visibility controls -->
+        <div class="actions" style="margin-top:8px; gap:12px;">
+          <label><input type="checkbox" checked onchange="toggleColumn(0)"> ID</label>
+          <label><input type="checkbox" checked onchange="toggleColumn(1)"> Name</label>
+          <label><input type="checkbox" checked onchange="toggleColumn(2)"> Email</label>
+          <label><input type="checkbox" checked onchange="toggleColumn(3)"> Role</label>
+          <label><input type="checkbox" checked onchange="toggleColumn(4)"> Status</label>
+        </div>
+    </div>
+  </main>
+
+  <div id="modal-user" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-user-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-user-title">New User</h3>
+        <button class="btn btn-ghost" id="modal-user-close">✕</button>
+      </div>
+      <div class="modal-body">
+          <div class="field">
+            <label>Full Name</label>
+            <input class="input" id="modal-user-name" placeholder="Jane Doe" />
+            <div class="muted" id="error-name" style="color:#ef4444;display:none;"></div>
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input class="input" id="modal-user-email" placeholder="you@example.edu" />
+            <div class="muted" id="error-email" style="color:#ef4444;display:none;"></div>
+          </div>
+          <div class="field">
+            <label>Role</label>
+            <select class="input" id="modal-user-role"><option>Student</option><option>Teacher</option><option>Admin</option></select>
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="modal-user-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-user-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span>&copy; <span id="year"></span> SIS. All rights reserved.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Help</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../js/shell.js"></script>
+  <script src="../../js/ui.js" type="module"></script>
+    <script type="module">
+      import { openModal, closeModal, showToast } from '../../js/ui.js';
+      const modalId = 'modal-user';
+      document.getElementById('btn-new-user').addEventListener('click', () => openModal(modalId));
+      document.getElementById('modal-user-close').addEventListener('click', () => closeModal(modalId));
+      document.getElementById('modal-user-cancel').addEventListener('click', () => closeModal(modalId));
+      // Inline form validation
+      document.getElementById('modal-user-save').addEventListener('click', () => {
+        let valid = true;
+        const name = document.getElementById('modal-user-name').value.trim();
+        const email = document.getElementById('modal-user-email').value.trim();
+        const errorName = document.getElementById('error-name');
+        const errorEmail = document.getElementById('error-email');
+        errorName.style.display = 'none';
+        errorEmail.style.display = 'none';
+        if (!name) {
+          errorName.textContent = 'Name is required.';
+          errorName.style.display = 'block';
+          valid = false;
+        }
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          errorEmail.textContent = 'Valid email required.';
+          errorEmail.style.display = 'block';
+          valid = false;
+        }
+        if (!valid) return;
+        closeModal(modalId); showToast('User saved');
+      });
+      // Table sorting
+      window.sortTable = function(n) {
+        const table = document.querySelector('.table');
+        let rows = Array.from(table.tBodies[0].rows).filter(r => r.id !== 'skeleton-row' && r.id !== 'empty-row');
+        let asc = table.getAttribute('data-sort') !== String(n);
+        rows.sort((a, b) => {
+          let x = a.cells[n].textContent.trim().toLowerCase();
+          let y = b.cells[n].textContent.trim().toLowerCase();
+          return asc ? (x > y ? 1 : -1) : (x < y ? 1 : -1);
+        });
+        rows.forEach(r => table.tBodies[0].appendChild(r));
+        table.setAttribute('data-sort', asc ? n : '');
+      };
+      // Column visibility
+      window.toggleColumn = function(idx) {
+        const table = document.querySelector('.table');
+        table.querySelectorAll('tr').forEach(row => {
+          if (row.cells[idx]) row.cells[idx].style.display = row.cells[idx].style.display === 'none' ? '' : 'none';
+        });
+      };
+      // Loading skeleton and empty state demo
+      function showSkeleton(show) {
+        document.getElementById('skeleton-row').style.display = show ? '' : 'none';
+      }
+      function showEmpty(show) {
+        document.getElementById('empty-row').style.display = show ? '' : 'none';
+      }
+      // Example: showSkeleton(true); setTimeout(() => showSkeleton(false), 1200);
+    </script>
+</body>
+</html>
+
+

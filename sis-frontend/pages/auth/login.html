@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="../../css/auth.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <div class="auth-wrapper">
+    <section class="auth-visual">
+      <div class="blob" aria-hidden="true"></div>
+      <div class="brand-large">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <p class="tagline">Secure, modern student information system designed for performance, accessibility, and delightful user experience.</p>
+    </section>
+    <section class="auth-form">
+      <div class="auth-card">
+        <h1>Welcome back</h1>
+        <p class="sub">Sign in to continue</p>
+
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required class="input" placeholder="you@example.edu" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" required minlength="8" class="input" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <div class="actions">
+            <label>
+              <input type="checkbox" id="remember" /> Remember me
+            </label>
+            <div class="links">
+              <a class="auth-link" href="forgot.html">Forgot password?</a>
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Sign in</button>
+            <a class="btn btn-outline" href="register.html">Create account</a>
+          </div>
+        </form>
+
+        <div class="divider">or continue with</div>
+        <div class="oauth-buttons">
+          <button class="btn btn-outline">Continue with Google</button>
+          <button class="btn btn-outline">Continue with Microsoft</button>
+        </div>
+
+        <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+          <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true">🌙</span>
+            <span class="sr-only">Toggle theme</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="../../js/auth.js"></script>
+</body>
+</html>
+
+

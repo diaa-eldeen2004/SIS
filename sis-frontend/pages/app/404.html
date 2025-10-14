@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found • SIS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+  <style>
+    .notfound { min-height: 70vh; display: grid; place-items: center; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="container notfound">
+    <div>
+      <img src="../../assets/logo.svg" alt="SIS Logo" width="56" height="56" />
+      <h1>404</h1>
+      <p class="muted">Sorry, we couldn't find that page.</p>
+      <div style="display:flex; gap:8px; justify-content:center;">
+        <a class="btn btn-primary" href="dashboard.html">Back to Dashboard</a>
+        <a class="btn btn-outline" href="help.html">Help Center</a>
+      </div>
+    </div>
+  </main>
+  <script>
+    const saved = localStorage.getItem('sis-theme') || 'light';
+    document.getElementById('theme-stylesheet').setAttribute('href', saved==='dark'?'../../css/theme-dark.css':'../../css/theme-light.css');
+  </script>
+</body>
+</html>
+
+

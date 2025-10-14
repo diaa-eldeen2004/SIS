@@ -1,0 +1,29 @@
+:root {
+  --bg: #0b0e14;
+  --text: #e6e9ef;
+  --text-muted: #a3adbd;
+
+  --surface: #121826;
+  --surface-2: #0f1522;
+  --border: #243047;
+  --border-strong: #2d3b57;
+
+  --accent: #60a5fa;            /* blue-400 */
+  --on-accent: #081019;
+  --accent-weak: rgba(96,165,250,0.16);
+
+  --success-weak: rgba(52,211,153,0.18);
+  --success-strong: #34d399;
+
+  --grad-1a: #10b981; /* emerald */
+  --grad-1b: #3b82f6; /* blue */
+  --grad-2a: #f59e0b; /* amber */
+  --grad-2b: #ef4444; /* red */
+  --grad-3a: #8b5cf6; /* violet */
+  --grad-3b: #06b6d4; /* cyan */
+  --on-gradient: #e6e9ef;
+}
+
+:focus-visible { outline: 3px solid rgba(96,165,250,0.45); outline-offset: 2px; border-radius: 8px; }
+
+

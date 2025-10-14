@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Student Profile</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <header class="navbar" role="navigation" aria-label="Primary">
+    <div class="navbar-inner">
+      <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="primary-menu">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+      <div class="brand">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <nav id="primary-menu" class="menu">
+        <ul class="menu-list" aria-label="Main sections">
+          <li><button class="btn btn-nav" data-href="dashboard.html">Dashboard</button></li>
+          <li><button class="btn btn-nav" data-href="attendance.html">Attendance</button></li>
+          <li><button class="btn btn-nav" data-href="reports.html">Reports</button></li>
+          <li><button class="btn btn-nav" data-href="notifications.html">Notifications</button></li>
+          <li class="menu-dropdown" id="manage-dropdown">
+            <button id="manage-toggle" class="btn btn-nav">Manage</button>
+            <div class="menu-dropdown-panel">
+              <button class="btn btn-compact" data-href="settings.html">Settings</button>
+              <button class="btn btn-compact" data-href="students.html">Students</button>
+              <button class="btn btn-compact" data-href="courses.html">Courses</button>
+              <button class="btn btn-compact" data-href="enrollments.html">Enrollments</button>
+              <button class="btn btn-compact" data-href="grades.html">Grades</button>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <a href="students.html">Students</a>
+      <span class="sep">›</span>
+      <span>Student Profile</span>
+    </nav>
+
+    <div class="grid" style="grid-template-columns: 1fr 2fr; gap:16px;">
+      <div class="card">
+        <h3>Profile</h3>
+        <p class="muted">ID: STU-0001</p>
+        <div class="field"><label>Full Name</label><input class="input" value="Jane Doe" /></div>
+        <div class="field"><label>Email</label><input class="input" value="jane.doe@example.edu" /></div>
+        <div class="field"><label>Program</label><input class="input" value="Computer Science" /></div>
+        <div class="actions" style="justify-content:flex-end;">
+          <button class="btn btn-primary">Save</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Records</h3>
+        <div class="menu-list" role="tablist" style="gap:8px; margin: 6px 0 12px;">
+          <button class="btn btn-compact is-active" role="tab" data-tab="info">Info</button>
+          <button class="btn btn-compact" role="tab" data-tab="enrollments">Enrollments</button>
+          <button class="btn btn-compact" role="tab" data-tab="grades">Grades</button>
+          <button class="btn btn-compact" role="tab" data-tab="attendance">Attendance</button>
+        </div>
+        <div id="tab-info" class="tab-card">
+          <p>General information and notes.</p>
+        </div>
+        <div id="tab-enrollments" class="tab-card" hidden>
+          <p>Enrollment history placeholder.</p>
+        </div>
+        <div id="tab-grades" class="tab-card" hidden>
+          <p>Grades history placeholder.</p>
+        </div>
+        <div id="tab-attendance" class="tab-card" hidden>
+          <p>Attendance records placeholder.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span>&copy; <span id="year"></span> SIS. All rights reserved.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Help</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../js/shell.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const tabs = Array.from(document.querySelectorAll('[data-tab]'));
+      const panels = {
+        info: document.getElementById('tab-info'),
+        enrollments: document.getElementById('tab-enrollments'),
+        grades: document.getElementById('tab-grades'),
+        attendance: document.getElementById('tab-attendance'),
+      };
+      function activate(name){
+        tabs.forEach(t => t.classList.toggle('is-active', t.getAttribute('data-tab')===name));
+        Object.entries(panels).forEach(([k,p]) => p.toggleAttribute('hidden', k!==name));
+      }
+      tabs.forEach(t => t.addEventListener('click', () => activate(t.getAttribute('data-tab'))));
+    });
+  </script>
+</body>
+</html>
+
+

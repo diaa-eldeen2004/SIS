@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <header class="navbar" role="navigation" aria-label="Primary">
+    <div class="navbar-inner">
+      <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="primary-menu">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+      <div class="brand">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <nav id="primary-menu" class="menu">
+        <ul class="menu-list" aria-label="Main sections">
+          <li><button class="btn btn-nav" data-href="dashboard.html">Dashboard</button></li>
+          <li><button class="btn btn-nav" data-href="attendance.html">Attendance</button></li>
+          <li><button class="btn btn-nav" data-href="reports.html">Reports</button></li>
+          <li><button class="btn btn-nav" data-href="notifications.html">Notifications</button></li>
+          <li class="menu-dropdown" id="manage-dropdown">
+            <button id="manage-toggle" class="btn btn-nav">Manage</button>
+            <div class="menu-dropdown-panel">
+              <button class="btn btn-compact" data-href="settings.html">Settings</button>
+              <button class="btn btn-compact" data-href="students.html">Students</button>
+              <button class="btn btn-compact" data-href="courses.html">Courses</button>
+              <button class="btn btn-compact" data-href="enrollments.html">Enrollments</button>
+              <button class="btn btn-compact" data-href="grades.html">Grades</button>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h1>Dashboard</h1>
+      <p class="muted">Overview of KPIs, alerts, and quick actions.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card gradient-1">
+        <h3>Active Students</h3>
+        <p class="kpi">12,480</p>
+      </div>
+      <div class="card gradient-2">
+        <h3>Enrollment Requests</h3>
+        <p class="kpi">324</p>
+      </div>
+      <div class="card gradient-3">
+        <h3>Attendance Alerts</h3>
+        <p class="kpi">58</p>
+      </div>
+    </div>
+      <!-- Dashboard Chart Scaffold -->
+      <div class="card" style="margin:24px 0;">
+        <h3>Enrollment Trends</h3>
+        <canvas id="enrollmentChart" style="width:100%;max-width:600px;height:220px;background:#f1f3f7;border-radius:12px;"></canvas>
+        <div class="muted" style="margin-top:8px;">(Chart library scaffold: connect to data)</div>
+      </div>
+    <div class="grid" style="margin-top:16px; grid-template-columns: 2fr 1fr;">
+      <div class="card">
+        <h3>Recent Activity</h3>
+        <p class="muted">Enrollments, grade updates, notifications</p>
+      </div>
+      <div class="card">
+        <h3>Quick Actions</h3>
+        <div class="actions">
+          <a class="btn btn-primary" href="students.html">Add Student</a>
+          <a class="btn btn-outline" href="courses.html">New Course</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span>&copy; <span id="year"></span> SIS. All rights reserved.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Help</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../js/shell.js"></script>
+    <script>
+      // Chart scaffold (replace with Chart.js or similar)
+      const ctx = document.getElementById('enrollmentChart').getContext ? document.getElementById('enrollmentChart').getContext('2d') : null;
+      if (ctx) {
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(40, 120, 40, 80); // Example bar
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(100, 80, 40, 120);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(160, 60, 40, 140);
+      }
+    </script>
+</body>
+</html>
+
+
