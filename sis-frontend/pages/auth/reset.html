@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Reset Password</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="../../css/auth.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <div class="auth-wrapper">
+    <section class="auth-visual">
+      <div class="blob" aria-hidden="true"></div>
+      <div class="brand-large">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <p class="tagline">Choose a strong password to keep your account secure.</p>
+    </section>
+    <section class="auth-form">
+      <div class="auth-card">
+        <h1>Reset password</h1>
+        <p class="sub">Enter and confirm your new password</p>
+
+        <form id="reset-form" novalidate>
+          <div class="field">
+            <label for="password">New Password</label>
+            <input id="password" name="password" type="password" required minlength="8" class="input" placeholder="Min 8 characters" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="confirm">Confirm Password</label>
+            <input id="confirm" name="confirm" type="password" required minlength="8" class="input" placeholder="Re-enter password" autocomplete="new-password" />
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Update password</button>
+            <a class="btn btn-outline" href="login.html">Back to login</a>
+          </div>
+        </form>
+
+        <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+          <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+            <span class="theme-icon" aria-hidden="true">🌙</span>
+            <span class="sr-only">Toggle theme</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="../../js/auth.js"></script>
+</body>
+</html>
+
+

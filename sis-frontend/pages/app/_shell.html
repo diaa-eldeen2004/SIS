@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <header class="navbar" role="navigation" aria-label="Primary">
+    <div class="navbar-inner">
+      <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="primary-menu">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+      <div class="brand">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <nav id="primary-menu" class="menu">
+        <ul class="menu-list" aria-label="Main sections">
+          <li><a class="tab-button" href="dashboard.html">Dashboard</a></li>
+          <li><a class="tab-button" href="students.html">Students</a></li>
+          <li><a class="tab-button" href="courses.html">Courses</a></li>
+          <li><a class="tab-button" href="enrollments.html">Enrollments</a></li>
+          <li><a class="tab-button" href="grades.html">Grades</a></li>
+          <li><a class="tab-button" href="attendance.html">Attendance</a></li>
+          <li><a class="tab-button" href="reports.html">Reports</a></li>
+          <li><a class="tab-button" href="notifications.html">Notifications</a></li>
+          <li><a class="tab-button" href="settings.html">Settings</a></li>
+        </ul>
+      </nav>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    {{CONTENT}}
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span>&copy; <span id="year"></span> SIS. All rights reserved.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Help</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../js/shell.js"></script>
+</body>
+</html>
+
+

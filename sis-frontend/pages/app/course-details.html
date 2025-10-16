@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIS • Course Details</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link id="theme-stylesheet" rel="stylesheet" href="../../css/theme-light.css">
+</head>
+<body>
+  <header class="navbar" role="navigation" aria-label="Primary">
+    <div class="navbar-inner">
+      <button class="navbar-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="primary-menu">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+      <div class="brand">
+        <img src="../../assets/logo.svg" alt="SIS Logo" class="logo" />
+        <span class="brand-name">SIS</span>
+      </div>
+      <nav id="primary-menu" class="menu">
+        <ul class="menu-list" aria-label="Main sections">
+          <li><button class="btn btn-nav" data-href="dashboard.html">Dashboard</button></li>
+          <li><button class="btn btn-nav" data-href="attendance.html">Attendance</button></li>
+          <li><button class="btn btn-nav" data-href="reports.html">Reports</button></li>
+          <li><button class="btn btn-nav" data-href="notifications.html">Notifications</button></li>
+          <li class="menu-dropdown" id="manage-dropdown">
+            <button id="manage-toggle" class="btn btn-nav">Manage</button>
+            <div class="menu-dropdown-panel">
+              <button class="btn btn-compact" data-href="settings.html">Settings</button>
+              <button class="btn btn-compact" data-href="students.html">Students</button>
+              <button class="btn btn-compact" data-href="courses.html">Courses</button>
+              <button class="btn btn-compact" data-href="enrollments.html">Enrollments</button>
+              <button class="btn btn-compact" data-href="grades.html">Grades</button>
+            </div>
+          </li>
+        </ul>
+      </nav>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-ghost" aria-label="Toggle theme" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <a href="courses.html">Courses</a>
+      <span class="sep">›</span>
+      <span>Course Details</span>
+    </nav>
+
+    <div class="grid" style="grid-template-columns: 2fr 1fr; gap:16px;">
+      <div class="card">
+        <h3>Schedule</h3>
+        <p class="muted">Lecture Mon/Wed 10:00-11:30, Lab Fri 12:00-13:30</p>
+        <div class="actions" style="justify-content:flex-end;">
+          <button class="btn btn-outline">Edit schedule</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Prerequisites</h3>
+        <p class="muted">CS100, MATH101</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3>Roster</h3>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr><th>Student ID</th><th>Name</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>STU-0001</td><td>Jane Doe</td><td><span class="badge badge-success">Enrolled</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span>&copy; <span id="year"></span> SIS. All rights reserved.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Help</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../js/shell.js"></script>
+</body>
+</html>
+
+

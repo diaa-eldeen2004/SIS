@@ -1,0 +1,11 @@
+/* High-contrast theme for accessibility */
+:root {
+  --bg: #000;
+  --text: #fff;
+  --text-muted: #ffd700;
+  --surface: #222;
+  --surface-2: #111;
+  --border: #fff;
+  --accent: #ffd700;
+  --on-accent: #000;
+}
