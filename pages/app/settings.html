@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - University Portal</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" title="Switch to dark mode">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <i class="fas fa-graduation-cap"></i>
+            University Portal
+        </div>
+        <ul class="navbar-nav">
+            <li><a href="../index.html">Home</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="help_center.html">Help</a></li>
+            <li><a href="../auth/auth_login.html" class="btn btn-primary">Login</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main style="padding: 4rem 2rem;">
+        <div class="container" style="max-width: 1000px; margin: 0 auto;">
+            <!-- Hero Section -->
+            <section class="hero" style="background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); color: white; padding: 3rem 2rem; border-radius: 16px; margin-bottom: 3rem; text-align: center;">
+                <h1 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: 700;">Settings</h1>
+                <p style="font-size: 1.1rem; opacity: 0.9;">Customize your portal experience and manage your account preferences.</p>
+            </section>
+
+            <!-- Settings Tabs -->
+            <section class="settings-tabs" style="margin-bottom: 3rem;">
+                <div class="card" style="padding: 0; overflow: hidden;">
+                    <div style="display: flex; border-bottom: 1px solid var(--border-color);">
+                        <button class="tab-button active" onclick="showTab('profile')" style="flex: 1; padding: 1rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid var(--primary-color);">
+                            <i class="fas fa-user"></i> Profile
+                        </button>
+                        <button class="tab-button" onclick="showTab('security')" style="flex: 1; padding: 1rem; border: none; background: none; cursor: pointer;">
+                            <i class="fas fa-shield-alt"></i> Security
+                        </button>
+                        <button class="tab-button" onclick="showTab('preferences')" style="flex: 1; padding: 1rem; border: none; background: none; cursor: pointer;">
+                            <i class="fas fa-cog"></i> Preferences
+                        </button>
+                        <button class="tab-button" onclick="showTab('notifications')" style="flex: 1; padding: 1rem; border: none; background: none; cursor: pointer;">
+                            <i class="fas fa-bell"></i> Notifications
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Settings -->
+            <div id="profile-tab" class="settings-tab">
+                <div class="card" style="padding: 2rem;">
+                    <h2 style="margin-bottom: 2rem; color: var(--text-primary);">
+                        <i class="fas fa-user" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                        Profile Settings
+                    </h2>
+                    
+                    <form id="profileForm" class="settings-form">
+                        <div class="grid grid-2" style="gap: 2rem;">
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label" for="firstName">First Name</label>
+                                    <input type="text" id="firstName" name="firstName" class="form-input" value="John" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="lastName">Last Name</label>
+                                    <input type="text" id="lastName" name="lastName" class="form-input" value="Doe" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="email">Email Address</label>
+                                    <input type="email" id="email" name="email" class="form-input" value="john.doe@university.edu" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="phone">Phone Number</label>
+                                    <input type="tel" id="phone" name="phone" class="form-input" value="+1 (555) 123-4567">
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label" for="studentId">Student ID</label>
+                                    <input type="text" id="studentId" name="studentId" class="form-input" value="STU2024001" readonly>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="department">Department</label>
+                                    <select id="department" name="department" class="form-input">
+                                        <option value="computer-science" selected>Computer Science</option>
+                                        <option value="mathematics">Mathematics</option>
+                                        <option value="physics">Physics</option>
+                                        <option value="chemistry">Chemistry</option>
+                                        <option value="biology">Biology</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="year">Academic Year</label>
+                                    <select id="year" name="year" class="form-input">
+                                        <option value="freshman">Freshman</option>
+                                        <option value="sophomore">Sophomore</option>
+                                        <option value="junior" selected>Junior</option>
+                                        <option value="senior">Senior</option>
+                                        <option value="graduate">Graduate</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="bio">Bio</label>
+                                    <textarea id="bio" name="bio" class="form-input form-textarea" placeholder="Tell us about yourself...">Computer Science student passionate about software development and artificial intelligence.</textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Security Settings -->
+            <div id="security-tab" class="settings-tab" style="display: none;">
+                <div class="card" style="padding: 2rem;">
+                    <h2 style="margin-bottom: 2rem; color: var(--text-primary);">
+                        <i class="fas fa-shield-alt" style="color: var(--accent-color); margin-right: 0.5rem;"></i>
+                        Security Settings
+                    </h2>
+                    
+                    <!-- Change Password -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Change Password</h3>
+                        <form id="passwordForm" class="settings-form">
+                            <div class="form-group">
+                                <label class="form-label" for="currentPassword">Current Password</label>
+                                <input type="password" id="currentPassword" name="currentPassword" class="form-input" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="newPassword">New Password</label>
+                                <input type="password" id="newPassword" name="newPassword" class="form-input" required>
+                                <div class="password-strength" style="margin-top: 0.5rem;">
+                                    <div id="strengthText" style="font-size: 0.8rem;">Password strength</div>
+                                    <div class="strength-bar">
+                                        <div class="strength-fill" id="strengthFill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="confirmNewPassword">Confirm New Password</label>
+                                <input type="password" id="confirmNewPassword" name="confirmNewPassword" class="form-input" required>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-key"></i>
+                                Update Password
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Two-Factor Authentication -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Two-Factor Authentication</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background-color: var(--background-color); border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div>
+                                <h4 style="margin-bottom: 0.5rem;">SMS Authentication</h4>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem;">Add an extra layer of security to your account</p>
+                            </div>
+                            <button class="btn btn-outline" onclick="toggle2FA()">
+                                <i class="fas fa-mobile-alt"></i>
+                                Enable 2FA
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Login Sessions -->
+                    <div>
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Active Sessions</h3>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Location</th>
+                                        <th>Last Active</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><i class="fas fa-laptop"></i> Windows PC</td>
+                                        <td>New York, NY</td>
+                                        <td>Now</td>
+                                        <td><span style="color: var(--success-color);">Current</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><i class="fas fa-mobile-alt"></i> iPhone</td>
+                                        <td>New York, NY</td>
+                                        <td>2 hours ago</td>
+                                        <td><button class="btn btn-error" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Revoke</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preferences Settings -->
+            <div id="preferences-tab" class="settings-tab" style="display: none;">
+                <div class="card" style="padding: 2rem;">
+                    <h2 style="margin-bottom: 2rem; color: var(--text-primary);">
+                        <i class="fas fa-cog" style="color: var(--success-color); margin-right: 0.5rem;"></i>
+                        Preferences
+                    </h2>
+                    
+                    <!-- Theme Settings -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Appearance</h3>
+                        <div class="grid grid-2" style="gap: 2rem;">
+                            <div>
+                                <label class="form-label">Theme</label>
+                                <div style="display: flex; gap: 1rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="radio" name="theme" value="light" checked>
+                                        <i class="fas fa-sun"></i> Light
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="radio" name="theme" value="dark">
+                                        <i class="fas fa-moon"></i> Dark
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="form-label">Language</label>
+                                <select class="form-input">
+                                    <option value="en" selected>English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dashboard Settings -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Dashboard</h3>
+                        <div class="grid grid-2" style="gap: 2rem;">
+                            <div>
+                                <label class="form-label">Default View</label>
+                                <select class="form-input">
+                                    <option value="grid" selected>Grid View</option>
+                                    <option value="list">List View</option>
+                                    <option value="compact">Compact View</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="form-label">Items per Page</label>
+                                <select class="form-input">
+                                    <option value="10">10 items</option>
+                                    <option value="25" selected>25 items</option>
+                                    <option value="50">50 items</option>
+                                    <option value="100">100 items</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Privacy Settings -->
+                    <div>
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Privacy</h3>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Show my profile to other students</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Allow instructors to see my activity</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox">
+                                <span>Share my data for analytics</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Settings -->
+            <div id="notifications-tab" class="settings-tab" style="display: none;">
+                <div class="card" style="padding: 2rem;">
+                    <h2 style="margin-bottom: 2rem; color: var(--text-primary);">
+                        <i class="fas fa-bell" style="color: var(--warning-color); margin-right: 0.5rem;"></i>
+                        Notification Settings
+                    </h2>
+                    
+                    <!-- Email Notifications -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Email Notifications</h3>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Assignment deadlines</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Grade updates</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Course announcements</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox">
+                                <span>System updates</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox">
+                                <span>Marketing emails</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Push Notifications -->
+                    <div style="margin-bottom: 3rem;">
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Push Notifications</h3>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>New messages</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" checked>
+                                <span>Assignment reminders</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox">
+                                <span>Event notifications</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox">
+                                <span>System alerts</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Frequency -->
+                    <div>
+                        <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">Notification Frequency</h3>
+                        <div style="display: flex; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="frequency" value="immediate" checked>
+                                <span>Immediate</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="frequency" value="daily">
+                                <span>Daily digest</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="frequency" value="weekly">
+                                <span>Weekly summary</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <section class="danger-zone" style="margin-top: 3rem;">
+                <div class="card" style="padding: 2rem; border: 2px solid var(--error-color);">
+                    <h2 style="margin-bottom: 1rem; color: var(--error-color);">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Danger Zone
+                    </h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                        These actions are irreversible. Please proceed with caution.
+                    </p>
+                    
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <button class="btn btn-error" onclick="resetPassword()">
+                            <i class="fas fa-key"></i>
+                            Reset Password
+                        </button>
+                        <button class="btn btn-error" onclick="deleteAccount()">
+                            <i class="fas fa-trash"></i>
+                            Delete Account
+                        </button>
+                        <button class="btn btn-error" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>University Portal</h3>
+                <p>Comprehensive campus management system designed to streamline academic operations and enhance the learning experience.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <a href="../index.html">Home</a>
+                <a href="about.html">About Us</a>
+                <a href="contact.html">Contact</a>
+                <a href="help_center.html">Help Center</a>
+            </div>
+            <div class="footer-section">
+                <h3>User Access</h3>
+                <a href="../auth/auth_login.html">Student Login</a>
+                <a href="../auth/auth_login.html">Doctor Login</a>
+                <a href="../auth/auth_login.html">Admin Login</a>
+                <a href="../auth/auth_signup.html">Register</a>
+            </div>
+            <div class="footer-section">
+                <h3>Contact Info</h3>
+                <p><i class="fas fa-envelope"></i> info@university.edu</p>
+                <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
+                <p><i class="fas fa-map-marker-alt"></i> 123 University Ave, Campus City</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 University Portal. All rights reserved. | Privacy Policy | Terms of Service</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="../../js/main.js"></script>
+    <script>
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.settings-tab').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+                button.style.borderBottom = 'none';
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+            event.target.style.borderBottom = '3px solid var(--primary-color)';
+        }
+
+        // Profile form submission
+        document.getElementById('profileForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            showNotification('Profile updated successfully!', 'success');
+        });
+
+        // Password form submission
+        document.getElementById('passwordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmNewPassword').value;
+            
+            if (newPassword !== confirmPassword) {
+                showNotification('Passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 8) {
+                showNotification('Password must be at least 8 characters long', 'error');
+                return;
+            }
+            
+            showNotification('Password updated successfully!', 'success');
+            this.reset();
+        });
+
+        // Password strength checker
+        document.getElementById('newPassword').addEventListener('input', function() {
+            const password = this.value;
+            const strengthText = document.getElementById('strengthText');
+            const strengthFill = document.getElementById('strengthFill');
+            
+            let strength = 0;
+            let strengthLabel = '';
+            
+            if (password.length >= 8) strength++;
+            if (/[a-z]/.test(password)) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            if (strength < 2) {
+                strengthLabel = 'Weak';
+                strengthFill.className = 'strength-fill strength-weak';
+                strengthFill.style.width = '20%';
+            } else if (strength < 4) {
+                strengthLabel = 'Medium';
+                strengthFill.className = 'strength-fill strength-medium';
+                strengthFill.style.width = '60%';
+            } else {
+                strengthLabel = 'Strong';
+                strengthFill.className = 'strength-fill strength-strong';
+                strengthFill.style.width = '100%';
+            }
+            
+            strengthText.textContent = `Password strength: ${strengthLabel}`;
+        });
+
+        // 2FA toggle
+        function toggle2FA() {
+            showNotification('Two-factor authentication enabled!', 'success');
+        }
+
+        // Danger zone actions
+        function resetPassword() {
+            if (confirm('Are you sure you want to reset your password? You will be logged out.')) {
+                showNotification('Password reset email sent!', 'success');
+            }
+        }
+
+        function deleteAccount() {
+            if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                if (confirm('This will permanently delete all your data. Are you absolutely sure?')) {
+                    showNotification('Account deletion initiated. You will receive a confirmation email.', 'warning');
+                }
+            }
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                showNotification('Logging out...', 'info');
+                setTimeout(() => {
+                    window.location.href = '../auth/auth_login.html';
+                }, 1500);
+            }
+        }
+
+        // Theme radio button change
+        document.querySelectorAll('input[name="theme"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'dark') {
+                    applyTheme('dark');
+                } else {
+                    applyTheme('light');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
