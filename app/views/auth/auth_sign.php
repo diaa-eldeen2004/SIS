@@ -258,6 +258,22 @@
                     </div>
                 </div>
 
+                <!-- Role Selector -->
+                <div class="form-group">
+                    <label class="form-label" for="role">Select Role</label>
+                    <div class="input-group">
+                        <i class="fas fa-user-tag"></i>
+                        <select id="role" name="role" class="form-input">
+                            <option value="admin">Admin</option>
+                            <option value="user" selected>User</option>
+                            <option value="student">Student</option>
+                            <option value="advisor">Advisor</option>
+                            <option value="doctor">Doctor</option>
+                            <option value="it">IT</option>
+                        </select>
+                    </div>
+                </div>
+
                 <!-- Password -->
                 <div class="form-group">
                     <label class="form-label" for="password">Password</label>
@@ -303,7 +319,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="../js/main.js"></script>
+        <script src="../js/main.js"></script>
     <script>
         // Password strength checker
         document.getElementById('password').addEventListener('input', function() {
@@ -358,7 +374,7 @@
             }
             
             // Basic validation
-            const requiredFields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword'];
+            const requiredFields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'role'];
             for (let field of requiredFields) {
                 if (!formData.get(field)) {
                     showNotification('Please fill in all required fields', 'error');
@@ -378,30 +394,76 @@
                 lastName: formData.get('lastName'),
                 email: formData.get('email'),
                 password: password,
-                confirmPassword: confirmPassword
+                confirmPassword: confirmPassword,
+                role: formData.get('role') || 'user'
             };
             
             try {
-                // API endpoint path - adjust based on your server setup
-                // Try absolute path first, fallback to relative
-                let apiPath = '/public/api/auth.php?action=signup';
-                // If absolute path doesn't work, uncomment the line below and comment the one above
-                // let apiPath = '../../public/api/auth.php?action=signup';
-                
-                const response = await fetch(apiPath, {
+                // Resolve API path relative to the current page
+                // Current page: /sis/app/views/auth/auth_sign.php
+                // Target: /sis/public/api/auth.php
+                // Relative: ../../public/api/auth.php
+                let apiPath = new URL('../../public/api/auth.php?action=signup', window.location.href).href;
+                console.log('Signup API path (relative):', apiPath);
+
+                let response = await fetch(apiPath, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(data)
                 });
-                
+
+                // If we got a 404, try fallback with absolute path
+                if (response.status === 404) {
+                    try {
+                        const origin = window.location.origin;
+                        const pathParts = window.location.pathname.split('/').filter(Boolean);
+                        // Find 'sis' or first path segment as project root
+                        let rootIndex = pathParts.indexOf('sis');
+                        if (rootIndex === -1) rootIndex = 0;
+                        const projectRoot = '/' + pathParts.slice(0, rootIndex + 1).join('/');
+                        const altPath = origin + projectRoot + '/public/api/auth.php?action=signup';
+                        console.log('Fallback signup API path:', altPath);
+                        response = await fetch(altPath, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                    } catch (e) {
+                        console.warn('Fallback path failed', e);
+                    }
+                }
+
+                console.log('Signup final API path used, status:', response.status);
+
+                // Debug HTTP errors with body text (often HTML error pages)
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Signup HTTP error', response.status, text);
+                    showNotification('Server error: ' + (response.statusText || response.status), 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Signup unexpected non-JSON response:', text);
+                    showNotification('Unexpected server response. Check console for details.', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    showNotification(result.message || 'Account created successfully! Redirecting to login...', 'success');
+                    showNotification(result.message || 'Account created successfully! Redirecting...', 'success');
                     setTimeout(() => {
-                        window.location.href = 'auth_login.php';
+                        // After successful signup route user to views/home.php (relative path)
+                        window.location.href = '../home.php';
                     }, 2000);
                 } else {
                     showNotification(result.message || 'Failed to create account. Please try again.', 'error');
@@ -409,7 +471,7 @@
                     submitBtn.innerHTML = originalText;
                 }
             } catch (error) {
-                console.error('Signup error:', error);
+                console.error('Signup network error:', error);
                 showNotification('An error occurred. Please try again later.', 'error');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;

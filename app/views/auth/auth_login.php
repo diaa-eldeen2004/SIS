@@ -260,7 +260,7 @@
                         <input type="checkbox" id="remember" name="remember">
                         <label for="remember">Remember me</label>
                     </div>
-                    <a href="auth_forgot_password.html" class="forgot-password">Forgot Password?</a>
+                    <a href="auth_forgot_password.php" class="forgot-password">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn-login">
@@ -270,7 +270,7 @@
             </form>
 
             <div class="auth-links">
-                <p>Don't have an account? <a href="auth_signup.html">Sign up here</a></p>
+                <p>Don't have an account? <a href="auth_sign.php">Sign up here</a></p>
             </div>
 
             
@@ -281,7 +281,7 @@
     <script src="../js/main.js"></script>
     <script>
         // Form submission
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
@@ -294,24 +294,111 @@
                 return;
             }
             
-            // Demo login logic
-            if (email === 'student@demo.com' && password === 'demo123') {
-                showNotification('Login successful! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = '../student/student_dashboard.html';
-                }, 1500);
-            } else if (email === 'doctor@demo.com' && password === 'demo123') {
-                showNotification('Login successful! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = '../doctor/doctor_dashboard.html';
-                }, 1500);
-            } else if (email === 'admin@demo.com' && password === 'demo123') {
-                showNotification('Login successful! Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = '../admin/admin_dashboard.html';
-                }, 1500);
-            } else {
-                showNotification('Invalid credentials. Please try again.', 'error');
+            // Disable submit button
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+            
+            try {
+                // Resolve API path relative to current page
+                // Current page: /sis/app/views/auth/auth_login.php
+                // Target: /sis/public/api/auth.php
+                // Relative: ../../public/api/auth.php
+                let apiPath = new URL('../../public/api/auth.php?action=login', window.location.href).href;
+                console.log('Login API path:', apiPath);
+
+                let response = await fetch(apiPath, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                // If we got a 404, try fallback with absolute path
+                if (response.status === 404) {
+                    try {
+                        const origin = window.location.origin;
+                        const pathParts = window.location.pathname.split('/').filter(Boolean);
+                        // Find 'sis' or first path segment as project root
+                        let rootIndex = pathParts.indexOf('sis');
+                        if (rootIndex === -1) rootIndex = 0;
+                        const projectRoot = '/' + pathParts.slice(0, rootIndex + 1).join('/');
+                        const altPath = origin + projectRoot + '/public/api/auth.php?action=login';
+                        console.log('Fallback login API path:', altPath);
+                        response = await fetch(altPath, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, password })
+                        });
+                    } catch (e) {
+                        console.warn('Fallback path failed', e);
+                    }
+                }
+
+                console.log('Final login API path used, status:', response.status);
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Login HTTP error', response.status, text);
+                    showNotification('Server error: ' + (response.statusText || response.status), 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Login unexpected non-JSON response:', text);
+                    showNotification('Unexpected server response. Check console for details.', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (result.success && result.user) {
+                    const role = result.user.role || 'user';
+                    showNotification('Login successful! Redirecting...', 'success');
+                    
+                    // Redirect based on user role
+                    let redirectUrl;
+                    switch(role) {
+                        case 'student':
+                            redirectUrl = '../student/student_dashboard.php';
+                            break;
+                        case 'doctor':
+                            redirectUrl = '../doctor/doctor_dashboard.php';
+                            break;
+                        case 'admin':
+                            redirectUrl = '../admin/admin_dashboard.php';
+                            break;
+                        case 'advisor':
+                            redirectUrl = '../advisor/advisor_dashboard.php';
+                            break;
+                        case 'it':
+                            redirectUrl = '../it/it_dashboard.php';
+                            break;
+                        default:
+                            redirectUrl = '../home.php';
+                    }
+                    
+                    setTimeout(() => {
+                        window.location.href = redirectUrl;
+                    }, 1500);
+                } else {
+                    showNotification(result.message || 'Login failed. Please try again.', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Login network error:', error);
+                showNotification('An error occurred. Please try again later.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         });
     </script>

@@ -2,6 +2,7 @@
 
 // Set error reporting (disable in production)
 error_reporting(E_ALL);
+// Keep display_errors off in production
 ini_set('display_errors', 0);
 
 // Set JSON header
@@ -27,6 +28,15 @@ $authController = new AuthController();
 switch ($action) {
     case 'signup':
         $authController->signup();
+        break;
+    case 'login':
+        $authController->login();
+        break;
+    case 'request-password-reset':
+        $authController->requestPasswordReset();
+        break;
+    case 'reset-password':
+        $authController->resetPassword();
         break;
     default:
         http_response_code(404);

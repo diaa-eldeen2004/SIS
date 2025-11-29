@@ -1,0 +1,27 @@
+<?php
+// Copy this file to app/config/mail.php and fill with your SMTP provider credentials.
+// Keep credentials out of version control (use environment variables in production).
+
+return [
+    // SMTP server host (e.g., smtp.gmail.com or smtp.mailtrap.io)
+    'smtp_host' => 'smtp.example.com',
+
+    // SMTP port (587 for TLS, 465 for SSL)
+    'smtp_port' => 587,
+
+    // 'ssl' or 'tls' or empty string for none
+    'smtp_secure' => 'tls',
+
+    // Whether SMTP authentication is required
+    'smtp_auth' => true,
+
+    // SMTP username (email or username provided by SMTP provider)
+    'smtp_username' => 'your-smtp-username',
+
+    // SMTP password (use app password or token when using services like Gmail)
+    'smtp_password' => 'your-smtp-password',
+
+    // From address and name used in messages
+    'from_email' => 'noreply@yourdomain.com',
+    'from_name' => 'University Portal',
+];
