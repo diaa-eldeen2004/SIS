@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `last_name` VARCHAR(100) NOT NULL,
     `email` VARCHAR(255) NOT NULL UNIQUE,
     `password` VARCHAR(255) NOT NULL,
-    `role` ENUM('student', 'doctor', 'admin') DEFAULT 'student',
+    `role` ENUM('student', 'doctor', 'admin','it','advisor') DEFAULT 'user',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_email` (`email`)

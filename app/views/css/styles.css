@@ -853,3 +853,342 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: none;
+  z-index: 1999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-overlay.active {
+  display: block;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--surface-color);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  z-index: 2000;
+  display: none !important;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal.active {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* Improve form layout inside modals for better UX */
+.modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal .form-grid,
+.modal .two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.modal .form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.modal .form-group {
+  min-width: 0; /* allow inputs to shrink inside grid */
+}
+
+/* Make modal content comfortable on large screens */
+.modal .modal-content {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.25rem;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translate(-50%, -48%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Header color variants matching action buttons */
+.modal-header--primary {
+  background-color: var(--primary-color);
+  color: white;
+  border-bottom: none;
+}
+.modal-header--secondary {
+  background-color: var(--secondary-color);
+  color: white;
+  border-bottom: none;
+}
+.modal-header--accent {
+  background-color: var(--accent-color);
+  color: white;
+  border-bottom: none;
+}
+.modal-header--primary .modal-title,
+.modal-header--secondary .modal-title,
+.modal-header--accent .modal-title {
+  color: white;
+}
+.modal-header--primary .modal-close,
+.modal-header--secondary .modal-close,
+.modal-header--accent .modal-close {
+  color: rgba(255,255,255,0.95);
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-content {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Modal Form Groups */
+.modal .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.modal .form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.modal .form-input,
+.modal .form-select,
+.modal .form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.modal .form-input:focus,
+.modal .form-select:focus,
+.modal .form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.modal .form-select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.5em 1.5em;
+}
+
+.modal .form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Modal Button Styles */
+.modal .btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.modal .btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.modal .btn-primary:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.modal .btn-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+.modal .btn-secondary:hover {
+  background-color: #475569;
+}
+
+.modal .btn-cancel {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.modal .btn-cancel:hover {
+  background-color: #cbd5e1;
+}
+
+/* Modal for Different Sizes */
+#studentFormModal {
+  width: 90%;
+  max-width: 500px;
+}
+
+#importModal {
+  width: 90%;
+  max-width: 450px;
+}
+
+#bulkEditModal {
+  width: 90%;
+  max-width: 500px;
+}
+
+/* Checkbox and Radio Styles in Modals */
+.modal .form-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.modal .form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
+.modal .form-checkbox label {
+  margin: 0;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+/* File Input Styling */
+.modal .file-input-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.modal .file-input-wrapper input[type="file"] {
+  display: none;
+}
+
+.modal .file-input-wrapper .file-input-label {
+  display: block;
+  padding: 1rem;
+  background-color: var(--background-color);
+  border: 2px dashed var(--border-color);
+  border-radius: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-secondary);
+}
+
+.modal .file-input-wrapper .file-input-label:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.modal .file-input-wrapper.dragover .file-input-label {
+  border-color: var(--primary-color);
+  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--primary-color);
+}
+
+/* Responsive Modal */
+@media (max-width: 768px) {
+  .modal {
+    width: 95%;
+    max-width: 95%;
+    max-height: 95vh;
+  }
+  
+  #studentFormModal,
+  #importModal,
+  #bulkEditModal {
+    width: 95%;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-content {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-direction: column-reverse;
+  }
+  
+  .modal .btn {
+    width: 100%;
+  }
+}

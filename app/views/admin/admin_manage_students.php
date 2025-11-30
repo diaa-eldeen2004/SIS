@@ -4,13 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Students - Admin Portal</title>
-    <link rel="stylesheet" href="../../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+<?php
+// Dynamic student listing powered by DB
+// Correct require path: from app/views/admin go up two levels to app/, then into core/
+require_once __DIR__ . '/../../core/Database.php';
+
+$db = Database::getInstance()->getConnection();
+
+// Read filters from query params (search, year)
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$yearFilter = isset($_GET['year']) ? trim($_GET['year']) : '';
+$programFilterVar = isset($_GET['program']) ? trim($_GET['program']) : '';
+$statusFilterVar = isset($_GET['status']) ? trim($_GET['status']) : '';
+
+// Base where: only students
+$where = "WHERE role = 'student'";
+$params = [];
+
+if ($search !== '') {
+    $where .= " AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? )";
+    $like = "%$search%";
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+}
+
+if ($yearFilter !== '') {
+    // filter by created_at year
+    $where .= " AND YEAR(created_at) = ?";
+    $params[] = $yearFilter;
+}
+
+// Count total students
+$countStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users $where");
+$countStmt->execute($params);
+$totalStudents = (int)$countStmt->fetchColumn();
+
+// Count students created this month
+$monthStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'student' AND YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+$monthStmt->execute();
+$studentsThisMonth = (int)$monthStmt->fetchColumn();
+
+// Active students: NOTE: users table has no status column. We'll treat all as active for now.
+$activeStudents = $totalStudents; // if you add a status column, change query accordingly
+
+// Fetch students rows (limit 100 for performance)
+$dataStmt = $db->prepare("SELECT id, first_name, last_name, email, created_at FROM users $where ORDER BY created_at DESC LIMIT 100");
+$dataStmt->execute($params);
+$students = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Handle export to CSV
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="students_export.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['ID','First Name','Last Name','Email','Created At']);
+    foreach ($students as $s) {
+        fputcsv($out, [$s['id'],$s['first_name'],$s['last_name'],$s['email'],$s['created_at']]);
+    }
+    fclose($out);
+    exit;
+}
+
+?>
     <!-- Sidebar Toggle Button -->
     <button class="sidebar-toggle" title="Toggle Sidebar">
         <i class="fas fa-bars"></i>
@@ -86,28 +149,28 @@
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-user-graduate"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">1,250</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalStudents); ?></div>
                         <div style="color: var(--text-secondary);">Total Students</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-check-circle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">1,180</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($activeStudents); ?></div>
                         <div style="color: var(--text-secondary);">Active Students</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--warning-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-clock"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">45</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">0</div>
                         <div style="color: var(--text-secondary);">Pending Approval</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--accent-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-plus"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">25</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($studentsThisMonth); ?></div>
                         <div style="color: var(--text-secondary);">New This Month</div>
                     </div>
                 </div>
@@ -118,33 +181,33 @@
                 <div class="card">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <input type="text" class="form-input" placeholder="Search students..." id="studentSearch" onkeyup="filterStudents()">
+                            <input type="text" class="form-input" placeholder="Search students..." id="studentSearch" value="<?php echo htmlspecialchars($search); ?>" onkeyup="if(event.key==='Enter'){filterStudents();}">
                         </div>
                         <div>
                             <select class="form-input" id="programFilter" onchange="filterStudents()">
                                 <option value="">All Programs</option>
-                                <option value="computer-science">Computer Science</option>
-                                <option value="mathematics">Mathematics</option>
-                                <option value="physics">Physics</option>
-                                <option value="engineering">Engineering</option>
+                                <option value="computer-science" <?php echo ($programFilterVar==='computer-science')? 'selected' : ''; ?>>Computer Science</option>
+                                <option value="mathematics" <?php echo ($programFilterVar==='mathematics')? 'selected' : ''; ?>>Mathematics</option>
+                                <option value="physics" <?php echo ($programFilterVar==='physics')? 'selected' : ''; ?>>Physics</option>
+                                <option value="engineering" <?php echo ($programFilterVar==='engineering')? 'selected' : ''; ?>>Engineering</option>
                             </select>
                         </div>
                         <div>
                             <select class="form-input" id="yearFilter" onchange="filterStudents()">
                                 <option value="">All Years</option>
-                                <option value="2024">2024</option>
-                                <option value="2023">2023</option>
-                                <option value="2022">2022</option>
-                                <option value="2021">2021</option>
+                                <option value="2024" <?php echo ($yearFilter==='2024')? 'selected' : ''; ?>>2024</option>
+                                <option value="2023" <?php echo ($yearFilter==='2023')? 'selected' : ''; ?>>2023</option>
+                                <option value="2022" <?php echo ($yearFilter==='2022')? 'selected' : ''; ?>>2022</option>
+                                <option value="2021" <?php echo ($yearFilter==='2021')? 'selected' : ''; ?>>2021</option>
                             </select>
                         </div>
                         <div>
                             <select class="form-input" id="statusFilter" onchange="filterStudents()">
                                 <option value="">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="pending">Pending</option>
-                                <option value="suspended">Suspended</option>
+                                <option value="active" <?php echo ($statusFilterVar==='active')? 'selected' : ''; ?>>Active</option>
+                                <option value="inactive" <?php echo ($statusFilterVar==='inactive')? 'selected' : ''; ?>>Inactive</option>
+                                <option value="pending" <?php echo ($statusFilterVar==='pending')? 'selected' : ''; ?>>Pending</option>
+                                <option value="suspended" <?php echo ($statusFilterVar==='suspended')? 'selected' : ''; ?>>Suspended</option>
                             </select>
                         </div>
                     </div>
@@ -163,9 +226,6 @@
                             <button class="btn btn-outline" onclick="exportStudents()">
                                 <i class="fas fa-download"></i> Export
                             </button>
-                            <button class="btn btn-outline" onclick="bulkActions()">
-                                <i class="fas fa-tasks"></i> Bulk Actions
-                            </button>
                         </div>
                     </div>
 
@@ -174,233 +234,51 @@
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>
-                                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
-                                    </th>
+                                    <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                                     <th>Student</th>
-                                    <th>Student ID</th>
-                                    <th>Program</th>
-                                    <th>Year</th>
-                                    <th>Status</th>
-                                    <th>GPA</th>
+                                    <th>ID</th>
+                                    <th>Email</th>
+                                    <th>Joined</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Student Row 1 -->
-                                <tr data-program="computer-science" data-year="2024" data-status="active">
-                                    <td>
-                                        <input type="checkbox" class="student-checkbox" value="2024001234">
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                <i class="fas fa-user"></i>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: var(--text-primary);">John Doe</div>
-                                                <div style="font-size: 0.9rem; color: var(--text-secondary);">john.doe@university.edu</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>2024001234</td>
-                                    <td>Computer Science</td>
-                                    <td>2024</td>
-                                    <td><span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Active</span></td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <div class="progress" style="width: 60px;">
-                                                <div class="progress-bar" style="width: 85%; background-color: var(--success-color);"></div>
-                                            </div>
-                                            <span style="font-size: 0.9rem; color: var(--success-color); font-weight: 500;">3.4</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('2024001234')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('2024001234')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="suspendStudent('2024001234')">
-                                                <i class="fas fa-ban"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Student Row 2 -->
-                                <tr data-program="mathematics" data-year="2023" data-status="active">
-                                    <td>
-                                        <input type="checkbox" class="student-checkbox" value="2023001235">
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; background-color: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                <i class="fas fa-user"></i>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: var(--text-primary);">Jane Smith</div>
-                                                <div style="font-size: 0.9rem; color: var(--text-secondary);">jane.smith@university.edu</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>2023001235</td>
-                                    <td>Mathematics</td>
-                                    <td>2023</td>
-                                    <td><span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Active</span></td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <div class="progress" style="width: 60px;">
-                                                <div class="progress-bar" style="width: 95%; background-color: var(--success-color);"></div>
-                                            </div>
-                                            <span style="font-size: 0.9rem; color: var(--success-color); font-weight: 500;">3.8</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('2023001235')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('2023001235')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="suspendStudent('2023001235')">
-                                                <i class="fas fa-ban"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Student Row 3 -->
-                                <tr data-program="physics" data-year="2024" data-status="pending">
-                                    <td>
-                                        <input type="checkbox" class="student-checkbox" value="2024001236">
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; background-color: var(--warning-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                <i class="fas fa-user"></i>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: var(--text-primary);">Mike Johnson</div>
-                                                <div style="font-size: 0.9rem; color: var(--text-secondary);">mike.johnson@university.edu</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>2024001236</td>
-                                    <td>Physics</td>
-                                    <td>2024</td>
-                                    <td><span style="background-color: var(--warning-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Pending</span></td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <div class="progress" style="width: 60px;">
-                                                <div class="progress-bar" style="width: 0%; background-color: var(--warning-color);"></div>
-                                            </div>
-                                            <span style="font-size: 0.9rem; color: var(--text-secondary);">-</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('2024001236')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveStudent('2024001236')">
-                                                <i class="fas fa-check"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('2024001236')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Student Row 4 -->
-                                <tr data-program="engineering" data-year="2022" data-status="suspended">
-                                    <td>
-                                        <input type="checkbox" class="student-checkbox" value="2022001237">
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; background-color: var(--error-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                <i class="fas fa-user"></i>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: var(--text-primary);">Sarah Wilson</div>
-                                                <div style="font-size: 0.9rem; color: var(--text-secondary);">sarah.wilson@university.edu</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>2022001237</td>
-                                    <td>Engineering</td>
-                                    <td>2022</td>
-                                    <td><span style="background-color: var(--error-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Suspended</span></td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <div class="progress" style="width: 60px;">
-                                                <div class="progress-bar" style="width: 60%; background-color: var(--error-color);"></div>
-                                            </div>
-                                            <span style="font-size: 0.9rem; color: var(--error-color); font-weight: 500;">2.4</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('2022001237')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="reactivateStudent('2022001237')">
-                                                <i class="fas fa-undo"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('2022001237')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Student Row 5 -->
-                                <tr data-program="computer-science" data-year="2023" data-status="active">
-                                    <td>
-                                        <input type="checkbox" class="student-checkbox" value="2023001238">
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; background-color: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                <i class="fas fa-user"></i>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: var(--text-primary);">Alex Brown</div>
-                                                <div style="font-size: 0.9rem; color: var(--text-secondary);">alex.brown@university.edu</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>2023001238</td>
-                                    <td>Computer Science</td>
-                                    <td>2023</td>
-                                    <td><span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Active</span></td>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <div class="progress" style="width: 60px;">
-                                                <div class="progress-bar" style="width: 90%; background-color: var(--success-color);"></div>
-                                            </div>
-                                            <span style="font-size: 0.9rem; color: var(--success-color); font-weight: 500;">3.6</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('2023001238')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('2023001238')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="suspendStudent('2023001238')">
-                                                <i class="fas fa-ban"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <?php if (!empty($students)): ?>
+                                    <?php foreach ($students as $s): ?>
+                                        <tr>
+                                            <td><input type="checkbox" class="student-checkbox" value="<?php echo htmlspecialchars($s['id']); ?>"></td>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <div style="width: 40px; height: 40px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                                                        <i class="fas fa-user"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($s['first_name'] . ' ' . $s['last_name']); ?></div>
+                                                        <div style="font-size: 0.9rem; color: var(--text-secondary);"><?php echo htmlspecialchars($s['email']); ?></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($s['id']); ?></td>
+                                            <td><?php echo htmlspecialchars($s['email']); ?></td>
+                                            <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($s['created_at']))); ?></td>
+                                            <td>
+                                                <div style="display: flex; gap: 0.25rem;">
+                                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewStudent('<?php echo htmlspecialchars($s['id']); ?>')">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editStudent('<?php echo htmlspecialchars($s['id']); ?>')">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="suspendStudent('<?php echo htmlspecialchars($s['id']); ?>')">
+                                                        <i class="fas fa-ban"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="6">No students found.</td></tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -458,6 +336,164 @@
             </section>
         </div>
     </main>
+
+    <!-- Modal Overlay (shared for all modals) -->
+    <div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" hidden></div>
+
+    <!-- Add/Edit Student Modal -->
+    <div id="studentFormModal" class="modal" data-header-style="primary" hidden>
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="studentModalTitle">Add Student</h2>
+                <button class="modal-close" onclick="closeStudentFormModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="studentForm" onsubmit="handleStudentFormSubmit(event)">
+                <input type="hidden" id="studentId" name="id">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" name="first_name" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" name="last_name" class="form-input" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" name="email" class="form-input" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Student Number</label>
+                        <input type="text" name="student_number" class="form-input" placeholder="e.g., 2025001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-input" placeholder="Leave blank to auto-generate">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Major</label>
+                        <input type="text" name="major" class="form-input" placeholder="e.g., Computer Science">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Minor</label>
+                        <input type="text" name="minor" class="form-input" placeholder="Optional">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">GPA</label>
+                        <input type="number" name="gpa" class="form-input" step="0.01" min="0" max="4" placeholder="e.g., 3.5">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-input">
+                            <option value="not_active">Not Active</option>
+                            <option value="active">Active</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-save"></i> Save Student
+                    </button>
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeStudentFormModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Students CSV Modal -->
+    <div id="importModal" class="modal" data-header-style="accent" hidden>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Import Students from CSV</h2>
+                <button class="modal-close" onclick="closeImportModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="importForm" onsubmit="handleImportSubmit(event)">
+                <div class="form-group">
+                    <label class="form-label">CSV File *</label>
+                    <input type="file" name="csvFile" id="csvFile" class="form-input" accept=".csv" required>
+                    <small style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">
+                        Required columns: first_name, last_name, email. Optional: student_number, major, minor, gpa, password, status
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="skipHeader" id="skipHeader" checked>
+                        <span style="margin-left: 0.5rem;">First row contains headers</span>
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-upload"></i> Import
+                    </button>
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeImportModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div id="bulkEditModal" class="modal" data-header-style="secondary" hidden>
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Bulk Edit Students</h2>
+                <button class="modal-close" onclick="closeBulkEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="bulkEditForm" onsubmit="handleBulkEditSubmit(event)">
+                <div class="form-group" style="background-color: var(--surface-color); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Selected Students: <span id="bulkSelectedCount">0</span></label>
+                    <small style="color: var(--text-secondary);">Check the boxes in the table above to select students for bulk editing.</small>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Major</label>
+                        <input type="text" name="major" class="form-input" placeholder="Leave blank to skip">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Minor</label>
+                        <input type="text" name="minor" class="form-input" placeholder="Leave blank to skip">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">GPA</label>
+                        <input type="number" name="gpa" class="form-input" step="0.01" min="0" max="4" placeholder="Leave blank to skip">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-input">
+                            <option value="">-- No Change --</option>
+                            <option value="not_active">Not Active</option>
+                            <option value="active">Active</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-check"></i> Apply Changes
+                    </button>
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeBulkEditModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Chat Widget -->
     <div class="chat-widget">
@@ -531,7 +567,7 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="../../js/main.js"></script>
+    <script src="../js/main.js"></script>
     <script>
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -549,30 +585,20 @@
 
         // Filter students
         function filterStudents() {
-            const searchTerm = document.getElementById('studentSearch').value.toLowerCase();
-            const programFilter = document.getElementById('programFilter').value;
-            const yearFilter = document.getElementById('yearFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
+            // Server-side filtering: redirect with query params
+            const searchTerm = encodeURIComponent(document.getElementById('studentSearch').value.trim());
+            const programFilter = encodeURIComponent(document.getElementById('programFilter').value);
+            const yearFilter = encodeURIComponent(document.getElementById('yearFilter').value);
+            const statusFilter = encodeURIComponent(document.getElementById('statusFilter').value);
 
-            const studentRows = document.querySelectorAll('tbody tr');
+            const params = [];
+            if (searchTerm) params.push('search=' + searchTerm);
+            if (yearFilter) params.push('year=' + yearFilter);
+            if (programFilter) params.push('program=' + programFilter);
+            if (statusFilter) params.push('status=' + statusFilter);
 
-            studentRows.forEach(row => {
-                const studentName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                const program = row.getAttribute('data-program');
-                const year = row.getAttribute('data-year');
-                const status = row.getAttribute('data-status');
-
-                const matchesSearch = studentName.includes(searchTerm);
-                const matchesProgram = !programFilter || program === programFilter;
-                const matchesYear = !yearFilter || year === yearFilter;
-                const matchesStatus = !statusFilter || status === statusFilter;
-
-                if (matchesSearch && matchesProgram && matchesYear && matchesStatus) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
+            const query = params.length ? ('?' + params.join('&')) : '';
+            window.location.href = window.location.pathname + query;
         }
 
         // Toggle select all
@@ -612,28 +638,320 @@
             }
         }
 
-        // General actions
+        // General actions - Quick Actions
         function addStudent() {
-            showNotification('Opening add student form...', 'info');
+            document.getElementById('studentForm').reset();
+            document.getElementById('studentId').value = '';
+            document.getElementById('studentModalTitle').textContent = 'Add Student';
+            openModal('studentFormModal');
         }
 
         function importStudents() {
-            showNotification('Opening student import dialog...', 'info');
+            document.getElementById('importForm').reset();
+            openModal('importModal');
         }
 
         function bulkActions() {
-            showNotification('Opening bulk actions menu...', 'info');
+            const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+            const selectedCount = checkedBoxes.length;
+            if (selectedCount === 0) {
+                showNotification('Please select at least one student', 'warning');
+                return;
+            }
+            document.getElementById('bulkSelectedCount').textContent = selectedCount;
+            openModal('bulkEditModal');
         }
 
         function exportStudents() {
-            showNotification('Exporting student data...', 'info');
+            // Export current filtered list as CSV by reloading with export=csv
+            const searchTerm = encodeURIComponent(document.getElementById('studentSearch').value.trim());
+            const yearFilter = encodeURIComponent(document.getElementById('yearFilter').value);
+            const params = [];
+            if (searchTerm) params.push('search=' + searchTerm);
+            if (yearFilter) params.push('year=' + yearFilter);
+            params.push('export=csv');
+            const query = params.length ? ('?' + params.join('&')) : '';
+            window.location.href = window.location.pathname + query;
         }
 
         function refreshStudents() {
             showNotification('Refreshing student data...', 'info');
             setTimeout(() => {
-                showNotification('Student data refreshed successfully', 'success');
-            }, 1000);
+                location.reload();
+            }, 500);
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            // Close any other active modals first so only one shows at a time
+            document.querySelectorAll('.modal.active').forEach(m => {
+                if (m.id !== modalId) {
+                    m.classList.remove('active');
+                    m.setAttribute('hidden', '');
+                }
+            });
+
+            const modal = document.getElementById(modalId);
+            const overlay = document.getElementById('modalOverlay');
+            if (!modal) return;
+
+            // Show overlay
+            overlay.classList.add('active');
+            overlay.removeAttribute('hidden');
+
+            // Show modal
+            modal.classList.add('active');
+            modal.removeAttribute('hidden');
+
+            // Apply header color/style based on data attribute
+            const header = modal.querySelector('.modal-header');
+            if (header) {
+                header.classList.remove('modal-header--primary','modal-header--secondary','modal-header--accent');
+                const style = modal.dataset.headerStyle || 'primary';
+                header.classList.add('modal-header--' + style);
+            }
+
+            // focus the first input for accessibility
+            const firstInput = modal.querySelector('input, select, textarea, button');
+            if (firstInput) firstInput.focus();
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(m => {
+                m.classList.remove('active');
+                m.setAttribute('hidden', '');
+            });
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        function closeStudentFormModal() {
+            const modal = document.getElementById('studentFormModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+            modal.setAttribute('hidden', '');
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        function closeImportModal() {
+            const modal = document.getElementById('importModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+            modal.setAttribute('hidden', '');
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        function closeBulkEditModal() {
+            const modal = document.getElementById('bulkEditModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+            modal.setAttribute('hidden', '');
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        // Form submission handlers
+        async function handleStudentFormSubmit(e) {
+            e.preventDefault();
+            const form = document.getElementById('studentForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            const studentId = data.id;
+            delete data.id;
+
+            // Remove empty fields
+            Object.keys(data).forEach(k => !data[k] && delete data[k]);
+
+            try {
+                const action = studentId ? 'update' : 'create';
+                if (studentId) data.id = studentId;
+
+                const response = await fetch('/sis/public/api/students.php?action=' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showNotification(result.message || 'Student saved successfully', 'success');
+                    closeStudentFormModal();
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showNotification(result.message || 'Failed to save student', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred', 'error');
+            }
+        }
+
+        async function handleImportSubmit(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                showNotification('Please select a CSV file', 'warning');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const csv = event.target.result;
+                    const lines = csv.split('\n').filter(l => l.trim());
+                    const skipHeader = document.getElementById('skipHeader').checked;
+                    const startIdx = skipHeader ? 1 : 0;
+
+                    const students = [];
+                    const headers = skipHeader ? lines[0].split(',').map(h => h.trim().toLowerCase()) : ['first_name','last_name','email','student_number','major','minor','gpa','password','status'];
+
+                    for (let i = startIdx; i < lines.length; i++) {
+                        const values = lines[i].split(',').map(v => v.trim());
+                        const student = {};
+                        headers.forEach((h, idx) => {
+                            if (values[idx]) student[h] = values[idx];
+                        });
+                        if (student.first_name && student.last_name && student.email) {
+                            students.push(student);
+                        }
+                    }
+
+                    if (students.length === 0) {
+                        showNotification('No valid students found in CSV', 'warning');
+                        return;
+                    }
+
+                    const response = await fetch('/sis/public/api/students.php?action=import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ students })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showNotification(`${students.length} students imported successfully`, 'success');
+                        closeImportModal();
+                        setTimeout(() => location.reload(), 500);
+                    } else {
+                        showNotification(result.message || 'Import failed', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Error parsing CSV file', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function handleBulkEditSubmit(e) {
+            e.preventDefault();
+            const form = document.getElementById('bulkEditForm');
+            const formData = new FormData(form);
+            const updates = Object.fromEntries(formData);
+            
+            // Remove empty fields
+            Object.keys(updates).forEach(k => !updates[k] && delete updates[k]);
+
+            if (Object.keys(updates).length === 0) {
+                showNotification('Please fill at least one field', 'warning');
+                return;
+            }
+
+            const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+            const studentIds = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+
+            if (studentIds.length === 0) {
+                showNotification('No students selected', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/sis/public/api/students.php?action=bulk-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: studentIds, updates })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showNotification(`${studentIds.length} students updated`, 'success');
+                    closeBulkEditModal();
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showNotification(result.message || 'Bulk update failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred', 'error');
+            }
+        }
+
+        // Edit student from table
+        function editStudent(studentId) {
+            // Fetch student data and populate form
+            fetch('/sis/public/api/students.php?action=get&id=' + studentId)
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success && result.data) {
+                        const student = result.data;
+                        const form = document.getElementById('studentForm');
+                        form.elements['first_name'].value = student.first_name || '';
+                        form.elements['last_name'].value = student.last_name || '';
+                        form.elements['email'].value = student.email || '';
+                        form.elements['student_number'].value = student.student_number || '';
+                        form.elements['major'].value = student.major || '';
+                        form.elements['minor'].value = student.minor || '';
+                        form.elements['gpa'].value = student.gpa || '';
+                        form.elements['status'].value = student.status || 'not_active';
+                        document.getElementById('studentId').value = student.id;
+                        document.getElementById('studentModalTitle').textContent = 'Edit Student';
+                        openModal('studentFormModal');
+                    } else {
+                        showNotification('Failed to load student', 'error');
+                    }
+                })
+                .catch(e => { console.error(e); showNotification('Error loading student', 'error'); });
+        }
+
+        // View student (for now just show notification, can expand later)
+        function viewStudent(studentId) {
+            showNotification(`Viewing student ${studentId}...`, 'info');
+            // TODO: Add a view-only modal or redirect to student detail page
+        }
+
+        // Suspend student
+        function suspendStudent(studentId) {
+            if (confirm('Are you sure you want to suspend this student?')) {
+                handleStudentStatusUpdate(studentId, 'not_active');
+            }
+        }
+
+        async function handleStudentStatusUpdate(studentId, status) {
+            try {
+                const response = await fetch('/sis/public/api/students.php?action=update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: studentId, status })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Status updated', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showNotification(result.message || 'Failed to update status', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred', 'error');
+            }
         }
 
         // Pagination

@@ -10,6 +10,121 @@ class User {
     }
 
     /**
+     * List students with optional filters: search (name/email), year, major, status
+     */
+    public function listStudents($filters = []) {
+        $sql = "SELECT id, student_number, first_name, last_name, email, major, minor, gpa, status, last_activity, created_at FROM users WHERE role = 'student'";
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR student_number LIKE ? )";
+            $like = "%" . $filters['search'] . "%";
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if (!empty($filters['year'])) {
+            $sql .= " AND YEAR(created_at) = ?";
+            $params[] = $filters['year'];
+        }
+        if (!empty($filters['major'])) {
+            $sql .= " AND major = ?";
+            $params[] = $filters['major'];
+        }
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = ?";
+            $params[] = $filters['status'];
+        }
+
+        $sql .= " ORDER BY created_at DESC LIMIT 100";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Create a student (admin action)
+     */
+    public function createStudent($data) {
+        $stmt = $this->db->prepare("INSERT INTO users (student_number, first_name, last_name, email, password, role, gpa, major, minor, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, NOW(), NOW())");
+        // password should be hashed before calling this method
+        return $stmt->execute([
+            $data['student_number'] ?? null,
+            $data['first_name'] ?? null,
+            $data['last_name'] ?? null,
+            $data['email'] ?? null,
+            $data['password'] ?? null,
+            $data['gpa'] ?? null,
+            $data['major'] ?? null,
+            $data['minor'] ?? null,
+            $data['status'] ?? 'not_active'
+        ]);
+    }
+
+    /**
+     * Update a student by id
+     */
+    public function updateStudent($id, $data) {
+        $fields = [];
+        $params = [];
+        $allowed = ['student_number','first_name','last_name','email','gpa','major','minor','status','last_activity'];
+        foreach ($allowed as $f) {
+            if (isset($data[$f])) {
+                $fields[] = "$f = ?";
+                $params[] = $data[$f];
+            }
+        }
+        if (empty($fields)) return false;
+        $params[] = $id;
+        $sql = "UPDATE users SET " . implode(', ', $fields) . ", updated_at = NOW() WHERE id = ?";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+
+    /**
+     * Delete a student by id
+     */
+    public function deleteStudent($id) {
+        $stmt = $this->db->prepare("DELETE FROM users WHERE id = ? AND role = 'student'");
+        return $stmt->execute([$id]);
+    }
+
+    /**
+     * Bulk insert students from array of associative rows. Each row must include first_name,last_name,email,password (plain) optionally student_number,gpa,major,minor,status
+     */
+    public function bulkInsertStudents(array $rows) {
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("INSERT INTO users (student_number, first_name, last_name, email, password, role, gpa, major, minor, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, NOW(), NOW())");
+            foreach ($rows as $r) {
+                $pwd = isset($r['password']) ? password_hash($r['password'], PASSWORD_DEFAULT) : password_hash('changeme', PASSWORD_DEFAULT);
+                $stmt->execute([
+                    $r['student_number'] ?? null,
+                    $r['first_name'] ?? null,
+                    $r['last_name'] ?? null,
+                    $r['email'] ?? null,
+                    $pwd,
+                    $r['gpa'] ?? null,
+                    $r['major'] ?? null,
+                    $r['minor'] ?? null,
+                    $r['status'] ?? 'not_active'
+                ]);
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log('Bulk insert error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Export students according to filters — returns an array of rows
+     */
+    public function exportStudents($filters = []) {
+        return $this->listStudents($filters);
+    }
+
+    /**
      * Check if email already exists
      */
     public function emailExists($email) {
