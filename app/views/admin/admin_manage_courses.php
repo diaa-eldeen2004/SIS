@@ -14,7 +14,7 @@
 <?php
 // Dynamic course listing powered by DB
 require_once __DIR__ . '/../../core/Database.php';
-
+///////////////////////////////////////////////////////////////////////////////
 $db = Database::getInstance()->getConnection();
 
 // Read filters from query params
