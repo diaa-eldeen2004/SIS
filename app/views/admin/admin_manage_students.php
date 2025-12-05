@@ -24,39 +24,59 @@ $yearFilter = isset($_GET['year']) ? trim($_GET['year']) : '';
 $programFilterVar = isset($_GET['program']) ? trim($_GET['program']) : '';
 $statusFilterVar = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-// Base where: only students
-$where = "WHERE role = 'student'";
+// Base where: query students table
+$where = "WHERE 1=1";
 $params = [];
 
 if ($search !== '') {
-    $where .= " AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? )";
+    $where .= " AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR student_number LIKE ?)";
     $like = "%$search%";
     $params[] = $like;
     $params[] = $like;
     $params[] = $like;
+    $params[] = $like;
+}
+
+// Check if year_enrolled column exists
+try {
+    $checkYear = $db->query("SHOW COLUMNS FROM students LIKE 'year_enrolled'");
+    $hasYearEnrolled = $checkYear->rowCount() > 0;
+} catch (PDOException $e) {
+    $hasYearEnrolled = false;
 }
 
 if ($yearFilter !== '') {
-    // filter by created_at year
-    $where .= " AND YEAR(created_at) = ?";
+    // Check if year_enrolled column exists before filtering
+    if ($hasYearEnrolled) {
+    $where .= " AND year_enrolled = ?";
     $params[] = $yearFilter;
+    }
+}
+
+if ($statusFilterVar !== '') {
+    $where .= " AND status = ?";
+    $params[] = $statusFilterVar;
 }
 
 // Count total students
-$countStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users $where");
+$countStmt = $db->prepare("SELECT COUNT(*) as cnt FROM students $where");
 $countStmt->execute($params);
 $totalStudents = (int)$countStmt->fetchColumn();
 
 // Count students created this month
-$monthStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'student' AND YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+$monthStmt = $db->prepare("SELECT COUNT(*) as cnt FROM students WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
 $monthStmt->execute();
 $studentsThisMonth = (int)$monthStmt->fetchColumn();
 
-// Active students: NOTE: users table has no status column. We'll treat all as active for now.
-$activeStudents = $totalStudents; // if you add a status column, change query accordingly
+// Count active students
+$activeStmt = $db->prepare("SELECT COUNT(*) as cnt FROM students WHERE status = 'active'");
+$activeStmt->execute();
+$activeStudents = (int)$activeStmt->fetchColumn();
 
 // Fetch students rows (limit 100 for performance)
-$dataStmt = $db->prepare("SELECT id, first_name, last_name, email, created_at FROM users $where ORDER BY created_at DESC LIMIT 100");
+// Conditionally include year_enrolled if the column exists
+$yearField = $hasYearEnrolled ? 'year_enrolled,' : '';
+$dataStmt = $db->prepare("SELECT id, student_number, first_name, last_name, email, phone, $yearField major, minor, gpa, status, created_at FROM students $where ORDER BY created_at DESC LIMIT 100");
 $dataStmt->execute($params);
 $students = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -236,8 +256,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <tr>
                                     <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                                     <th>Student</th>
-                                    <th>ID</th>
+                                    <th>Student Number</th>
                                     <th>Email</th>
+                                    <th>Major</th>
+                                    <th>Status</th>
                                     <th>Joined</th>
                                     <th>Actions</th>
                                 </tr>
@@ -258,8 +280,17 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td><?php echo htmlspecialchars($s['id']); ?></td>
+                                            <td><?php echo htmlspecialchars($s['student_number'] ?? 'N/A'); ?></td>
                                             <td><?php echo htmlspecialchars($s['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($s['major'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <span style="background-color: <?php 
+                                                    echo $s['status'] === 'active' ? 'var(--success-color)' : 
+                                                        ($s['status'] === 'suspended' ? 'var(--error-color)' : 'var(--warning-color)'); 
+                                                ?>; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                                                    <?php echo ucfirst($s['status'] ?? 'active'); ?>
+                                                </span>
+                                            </td>
                                             <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($s['created_at']))); ?></td>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
@@ -277,7 +308,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="6">No students found.</td></tr>
+                                    <tr><td colspan="7">No students found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -367,12 +398,22 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">Student Number</label>
-                        <input type="text" name="student_number" class="form-input" placeholder="e.g., 2025001">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" name="phone" class="form-input" placeholder="e.g., +1234567890">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <input type="password" name="password" class="form-input" placeholder="Leave blank to auto-generate">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Student Number</label>
+                        <input type="text" name="student_number" class="form-input" placeholder="e.g., 2025001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Year Enrolled</label>
+                        <input type="number" name="year_enrolled" class="form-input" min="2000" max="2099" placeholder="e.g., 2024">
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -393,8 +434,9 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     <div class="form-group">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-input">
-                            <option value="not_active">Not Active</option>
                             <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="suspended">Suspended</option>
                         </select>
                     </div>
                 </div>
@@ -772,23 +814,56 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 const action = studentId ? 'update' : 'create';
                 if (studentId) data.id = studentId;
 
-                const response = await fetch('/sis/public/api/students.php?action=' + action, {
+                // Use admin_users API for creating, students API for updating
+                const apiPath = action === 'create' 
+                    ? getApiPath('admin_users.php?action=create-student')
+                    : getApiPath('students.php?action=' + action);
+                console.log('API Path:', apiPath); // Debug log
+                const response = await fetch(apiPath, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
 
+                // Check if response is OK
+                if (!response.ok) {
+                    // Try to get error message from response
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        // If JSON parsing fails, get text
+                        const text = await response.text();
+                        console.error('Response text:', text);
+                        showNotification('Server error: ' + text.substring(0, 200), 'error');
+                        return;
+                    }
+                    console.error('Error response:', errorData);
+                    showNotification(errorData.message || errorData.error || 'Failed to save student', 'error');
+                    if (errorData.driver_message) {
+                        console.error('Database error:', errorData.driver_message);
+                        alert('Database Error: ' + errorData.driver_message + '\n\nCheck console for full details.');
+                    }
+                    return;
+                }
+                
                 const result = await response.json();
                 if (result.success) {
                     showNotification(result.message || 'Student saved successfully', 'success');
                     closeStudentFormModal();
                     setTimeout(() => location.reload(), 500);
                 } else {
-                    showNotification(result.message || 'Failed to save student', 'error');
+                    console.error('Failed response:', result);
+                    showNotification(result.message || result.error || 'Failed to save student', 'error');
+                    if (result.driver_message) {
+                        console.error('Database error:', result.driver_message);
+                        alert('Database Error: ' + result.driver_message + '\n\nCheck console for full details.');
+                    }
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showNotification('An error occurred', 'error');
+                console.error('Error stack:', error.stack);
+                showNotification('An error occurred: ' + error.message, 'error');
             }
         }
 
@@ -828,7 +903,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         return;
                     }
 
-                    const response = await fetch('/sis/public/api/students.php?action=import', {
+                    const response = await fetch(getApiPath('students.php?action=import'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ students })
@@ -873,7 +948,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             }
 
             try {
-                const response = await fetch('/sis/public/api/students.php?action=bulk-update', {
+                const response = await fetch(getApiPath('students.php?action=bulk-update'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ids: studentIds, updates })
@@ -893,10 +968,22 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             }
         }
 
+        // Helper function to get API base path
+        function getApiPath(endpoint) {
+            const currentUrl = window.location.href;
+            const url = new URL(currentUrl);
+            const pathParts = url.pathname.split('/').filter(Boolean);
+            let rootIndex = pathParts.indexOf('sis');
+            if (rootIndex === -1) rootIndex = 0;
+            const projectRoot = '/' + pathParts.slice(0, rootIndex + 1).join('/');
+            return projectRoot + '/public/api/' + endpoint;
+        }
+
         // Edit student from table
         function editStudent(studentId) {
             // Fetch student data and populate form
-            fetch('/sis/public/api/students.php?action=get&id=' + studentId)
+            const apiPath = getApiPath('students.php?action=get&id=' + studentId);
+            fetch(apiPath)
                 .then(r => r.json())
                 .then(result => {
                     if (result.success && result.data) {
@@ -905,11 +992,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         form.elements['first_name'].value = student.first_name || '';
                         form.elements['last_name'].value = student.last_name || '';
                         form.elements['email'].value = student.email || '';
+                        form.elements['phone'].value = student.phone || '';
                         form.elements['student_number'].value = student.student_number || '';
+                        form.elements['year_enrolled'].value = student.year_enrolled || '';
                         form.elements['major'].value = student.major || '';
                         form.elements['minor'].value = student.minor || '';
                         form.elements['gpa'].value = student.gpa || '';
-                        form.elements['status'].value = student.status || 'not_active';
+                        form.elements['status'].value = student.status || 'active';
                         document.getElementById('studentId').value = student.id;
                         document.getElementById('studentModalTitle').textContent = 'Edit Student';
                         openModal('studentFormModal');
@@ -935,7 +1024,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
         async function handleStudentStatusUpdate(studentId, status) {
             try {
-                const response = await fetch('/sis/public/api/students.php?action=update', {
+                const response = await fetch(getApiPath('students.php?action=update'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: studentId, status })

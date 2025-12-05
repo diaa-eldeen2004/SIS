@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Advisors - Admin Portal</title>
+    <title>Manage Users - Admin Portal</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,14 +12,13 @@
 </head>
 <body>
 <?php
-// Dynamic advisor listing powered by DB
+// Dynamic user listing powered by DB
 require_once __DIR__ . '/../../core/Database.php';
 
 $db = Database::getInstance()->getConnection();
 
 // Read filters from query params
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$departmentFilter = isset($_GET['department']) ? trim($_GET['department']) : '';
 
 // Base where clause
 $where = "WHERE 1=1";
@@ -33,37 +32,32 @@ if ($search !== '') {
     $params[] = $like;
 }
 
-if ($departmentFilter !== '') {
-    $where .= " AND department = ?";
-    $params[] = $departmentFilter;
-}
-
 // Initialize default values
-$totalAdvisors = 0;
-$advisorsThisMonth = 0;
-$advisors = [];
+$totalUsers = 0;
+$usersThisMonth = 0;
+$users = [];
 
-// Check if advisors table exists, handle gracefully if it doesn't
+// Check if users table exists, handle gracefully if it doesn't
 try {
-    // Count total advisors
-    $countStmt = $db->prepare("SELECT COUNT(*) as cnt FROM advisors $where");
+    // Count total users
+    $countStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users $where");
     $countStmt->execute($params);
-    $totalAdvisors = (int)$countStmt->fetchColumn();
+    $totalUsers = (int)$countStmt->fetchColumn();
 
-    // Count advisors created this month
-    $monthStmt = $db->prepare("SELECT COUNT(*) as cnt FROM advisors WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+    // Count users created this month
+    $monthStmt = $db->prepare("SELECT COUNT(*) as cnt FROM users WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
     $monthStmt->execute();
-    $advisorsThisMonth = (int)$monthStmt->fetchColumn();
+    $usersThisMonth = (int)$monthStmt->fetchColumn();
 
-    // Fetch advisors rows (limit 100 for performance)
-    $dataStmt = $db->prepare("SELECT id, first_name, last_name, email, phone, department, specialization, office_location, office_hours, created_at FROM advisors $where ORDER BY created_at DESC LIMIT 100");
+    // Fetch users rows (limit 100 for performance)
+    $dataStmt = $db->prepare("SELECT id, first_name, last_name, email, phone, created_at FROM users $where ORDER BY created_at DESC LIMIT 100");
     $dataStmt->execute($params);
-    $advisors = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+    $users = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // If advisors table doesn't exist, show friendly message
+    // If users table doesn't exist, show friendly message
     if (strpos($e->getMessage(), "doesn't exist") !== false) {
         $tableError = true;
-        $errorMessage = "The advisors table doesn't exist yet. Please run the database migrations first.";
+        $errorMessage = "The users table doesn't exist yet. Please run the database migrations first.";
     } else {
         // Re-throw other database errors
         throw $e;
@@ -72,30 +66,26 @@ try {
 
 // Handle export to CSV (only if table exists and we have data)
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    if (!isset($tableError) && !empty($advisors)) {
+    if (!isset($tableError) && !empty($users)) {
         header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="advisors_export.csv"');
+        header('Content-Disposition: attachment; filename="users_export.csv"');
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['ID','First Name','Last Name','Email','Phone','Department','Specialization','Office Location','Office Hours','Created At']);
-        foreach ($advisors as $a) {
+        fputcsv($out, ['ID','First Name','Last Name','Email','Phone','Created At']);
+        foreach ($users as $u) {
             fputcsv($out, [
-                $a['id'],
-                $a['first_name'],
-                $a['last_name'],
-                $a['email'],
-                $a['phone'] ?? '',
-                $a['department'] ?? '',
-                $a['specialization'] ?? '',
-                $a['office_location'] ?? '',
-                $a['office_hours'] ?? '',
-                $a['created_at']
+                $u['id'],
+                $u['first_name'],
+                $u['last_name'],
+                $u['email'],
+                $u['phone'] ?? '',
+                $u['created_at']
             ]);
         }
         fclose($out);
         exit;
     } else {
         // Redirect back if table doesn't exist
-        header('Location: admin_manage_advisor.php');
+        header('Location: admin_manage_user.php');
         exit;
     }
 }
@@ -129,13 +119,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <a href="admin_manage_courses.php" class="nav-item">
                 <i class="fas fa-book"></i> Manage Courses
             </a>
-            <a href="admin_manage_advisor.php" class="nav-item active">
+            <a href="admin_manage_advisor.php" class="nav-item">
                 <i class="fas fa-user-tie"></i> Manage Advisors
             </a>
             <a href="admin_manage_it.php" class="nav-item">
                 <i class="fas fa-laptop-code"></i> Manage IT Officers
             </a>
-            <a href="admin_manage_user.php" class="nav-item">
+            <a href="admin_manage_user.php" class="nav-item active">
                 <i class="fas fa-users"></i> Manage Users
             </a>
             <a href="admin_reports.php" class="nav-item">
@@ -147,10 +137,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <a href="admin_profile.php" class="nav-item">
                 <i class="fas fa-user"></i> Profile
             </a>
-            <a href="../settings.php" class="nav-item">
+            <a href="../app/settings.php" class="nav-item">
                 <i class="fas fa-cog"></i> Settings
             </a>
-            <a href="../auth/logout.php" class="nav-item">
+            <a href="../app/logout.php" class="nav-item">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </nav>
@@ -162,15 +152,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         <header class="content-header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <h1 style="margin: 0; color: var(--text-primary);">Manage Advisors</h1>
-                    <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Add, update, and manage academic advisor accounts.</p>
+                    <h1 style="margin: 0; color: var(--text-primary);">Manage Users</h1>
+                    <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">Add, update, and manage default user accounts.</p>
                 </div>
                 <div style="display: flex; gap: 1rem;">
-                    <button class="btn btn-outline" onclick="refreshAdvisors()">
+                    <button class="btn btn-outline" onclick="refreshUsers()">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </button>
-                    <button class="btn btn-primary" onclick="addAdvisor()">
-                        <i class="fas fa-plus"></i> Add Advisor
+                    <button class="btn btn-primary" onclick="addUser()">
+                        <i class="fas fa-plus"></i> Add User
                     </button>
                 </div>
             </div>
@@ -178,22 +168,22 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
         <!-- Content Body -->
         <div class="content-body">
-            <!-- Advisor Statistics -->
-            <section class="advisor-stats" style="margin-bottom: 2rem;">
+            <!-- User Statistics -->
+            <section class="user-stats" style="margin-bottom: 2rem;">
                 <div class="grid grid-4">
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
-                            <i class="fas fa-user-tie"></i>
+                            <i class="fas fa-users"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalAdvisors); ?></div>
-                        <div style="color: var(--text-secondary);">Total Advisors</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalUsers); ?></div>
+                        <div style="color: var(--text-secondary);">Total Users</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-check-circle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalAdvisors); ?></div>
-                        <div style="color: var(--text-secondary);">Active Advisors</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalUsers); ?></div>
+                        <div style="color: var(--text-secondary);">Active Users</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--warning-color); margin-bottom: 0.5rem;">
@@ -206,7 +196,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         <div style="font-size: 2.5rem; color: var(--accent-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-plus"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($advisorsThisMonth); ?></div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($usersThisMonth); ?></div>
                         <div style="color: var(--text-secondary);">New This Month</div>
                     </div>
                 </div>
@@ -239,86 +229,75 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             </section>
             <?php endif; ?>
 
-            <!-- Advisor Filter -->
-            <section class="advisor-filter" style="margin-bottom: 2rem;">
+            <!-- User Filter -->
+            <section class="user-filter" style="margin-bottom: 2rem;">
                 <div class="card">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <input type="text" class="form-input" placeholder="Search advisors..." id="advisorSearch" value="<?php echo htmlspecialchars($search); ?>" onkeyup="if(event.key==='Enter'){filterAdvisors();}">
-                        </div>
-                        <div>
-                            <select class="form-input" id="departmentFilter" onchange="filterAdvisors()">
-                                <option value="">All Departments</option>
-                                <option value="Computer Science" <?php echo ($departmentFilter==='Computer Science')? 'selected' : ''; ?>>Computer Science</option>
-                                <option value="Mathematics" <?php echo ($departmentFilter==='Mathematics')? 'selected' : ''; ?>>Mathematics</option>
-                                <option value="Physics" <?php echo ($departmentFilter==='Physics')? 'selected' : ''; ?>>Physics</option>
-                                <option value="Engineering" <?php echo ($departmentFilter==='Engineering')? 'selected' : ''; ?>>Engineering</option>
-                            </select>
+                            <input type="text" class="form-input" placeholder="Search users..." id="userSearch" value="<?php echo htmlspecialchars($search); ?>" onkeyup="if(event.key==='Enter'){filterUsers();}">
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Advisors List -->
-            <section class="advisors-list">
+            <!-- Users List -->
+            <section class="users-list">
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <i class="fas fa-user-tie" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
-                            Advisor Directory
+                            <i class="fas fa-users" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                            User Directory
                         </h2>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-outline" onclick="exportAdvisors()">
+                            <button class="btn btn-outline" onclick="exportUsers()">
                                 <i class="fas fa-download"></i> Export
                             </button>
                         </div>
                     </div>
 
-                    <!-- Advisors Table -->
+                    <!-- Users Table -->
                     <div class="table-container">
                         <table class="table">
                             <thead>
                                 <tr>
                                     <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-                                    <th>Advisor</th>
+                                    <th>User</th>
                                     <th>ID</th>
-                                    <th>Department</th>
-                                    <th>Specialization</th>
                                     <th>Email</th>
+                                    <th>Phone</th>
                                     <th>Joined</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if (!empty($advisors)): ?>
-                                    <?php foreach ($advisors as $a): ?>
+                                <?php if (!empty($users)): ?>
+                                    <?php foreach ($users as $u): ?>
                                         <tr>
-                                            <td><input type="checkbox" class="advisor-checkbox" value="<?php echo htmlspecialchars($a['id']); ?>"></td>
+                                            <td><input type="checkbox" class="user-checkbox" value="<?php echo htmlspecialchars($u['id']); ?>"></td>
                                             <td>
                                                 <div style="display: flex; align-items: center; gap: 0.75rem;">
                                                     <div style="width: 40px; height: 40px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                                        <i class="fas fa-user-tie"></i>
+                                                        <i class="fas fa-user"></i>
                                                     </div>
                                                     <div>
-                                                        <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($a['first_name'] . ' ' . $a['last_name']); ?></div>
-                                                        <div style="font-size: 0.9rem; color: var(--text-secondary);"><?php echo htmlspecialchars($a['email']); ?></div>
+                                                        <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($u['first_name'] . ' ' . $u['last_name']); ?></div>
+                                                        <div style="font-size: 0.9rem; color: var(--text-secondary);"><?php echo htmlspecialchars($u['email']); ?></div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td><?php echo htmlspecialchars($a['id']); ?></td>
-                                            <td><?php echo htmlspecialchars($a['department'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($a['specialization'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($a['email']); ?></td>
-                                            <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($a['created_at']))); ?></td>
+                                            <td><?php echo htmlspecialchars($u['id']); ?></td>
+                                            <td><?php echo htmlspecialchars($u['email']); ?></td>
+                                            <td><?php echo htmlspecialchars($u['phone'] ?? 'N/A'); ?></td>
+                                            <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($u['created_at']))); ?></td>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
-                                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAdvisor('<?php echo htmlspecialchars($a['id']); ?>')">
+                                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewUser('<?php echo htmlspecialchars($u['id']); ?>')">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
-                                                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editAdvisor('<?php echo htmlspecialchars($a['id']); ?>')">
+                                                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editUser('<?php echo htmlspecialchars($u['id']); ?>')">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteAdvisor('<?php echo htmlspecialchars($a['id']); ?>')">
+                                                    <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteUser('<?php echo htmlspecialchars($u['id']); ?>')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -326,7 +305,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="8">No advisors found.</td></tr>
+                                    <tr><td colspan="7">No users found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -335,7 +314,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     <!-- Pagination -->
                     <div style="display: flex; justify-content: between; align-items: center; padding: 1rem; border-top: 1px solid var(--border-color);">
                         <div style="color: var(--text-secondary); font-size: 0.9rem;">
-                            Showing <?php echo count($advisors); ?> of <?php echo htmlspecialchars($totalAdvisors); ?> advisors
+                            Showing <?php echo count($users); ?> of <?php echo htmlspecialchars($totalUsers); ?> users
                         </div>
                     </div>
                 </div>
@@ -351,11 +330,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         </h2>
                     </div>
                     <div class="grid grid-4">
-                        <button class="btn btn-primary" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="addAdvisor()">
+                        <button class="btn btn-primary" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="addUser()">
                             <i class="fas fa-plus" style="font-size: 2rem;"></i>
-                            <span>Add Advisor</span>
+                            <span>Add User</span>
                         </button>
-                        <button class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="exportAdvisors()">
+                        <button class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="exportUsers()">
                             <i class="fas fa-download" style="font-size: 2rem;"></i>
                             <span>Export Data</span>
                         </button>
@@ -368,17 +347,17 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     <!-- Modal Overlay (shared for all modals) -->
     <div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" hidden></div>
 
-    <!-- Add/Edit Advisor Modal -->
-    <div id="advisorFormModal" class="modal" data-header-style="primary" hidden>
+    <!-- Add/Edit User Modal -->
+    <div id="userFormModal" class="modal" data-header-style="primary" hidden>
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2 id="advisorModalTitle">Add Advisor</h2>
-                <button class="modal-close" onclick="closeAdvisorFormModal()">
+                <h2 id="userModalTitle">Add User</h2>
+                <button class="modal-close" onclick="closeUserFormModal()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <form id="advisorForm" onsubmit="handleAdvisorFormSubmit(event)">
-                <input type="hidden" id="advisorId" name="id">
+            <form id="userForm" onsubmit="handleUserFormSubmit(event)">
+                <input type="hidden" id="userId" name="id">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
                         <label class="form-label">First Name *</label>
@@ -398,36 +377,14 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     <input type="tel" name="phone" class="form-input" placeholder="e.g., +1234567890">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Department</label>
-                    <select name="department" class="form-input">
-                        <option value="">Select Department</option>
-                        <option value="Computer Science">Computer Science</option>
-                        <option value="Mathematics">Mathematics</option>
-                        <option value="Physics">Physics</option>
-                        <option value="Engineering">Engineering</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Specialization</label>
-                    <input type="text" name="specialization" class="form-input" placeholder="e.g., Academic Counseling">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Office Location</label>
-                    <input type="text" name="office_location" class="form-input" placeholder="e.g., Building A, Room 201">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Office Hours</label>
-                    <input type="text" name="office_hours" class="form-input" placeholder="e.g., Mon-Fri 9AM-5PM">
-                </div>
-                <div class="form-group">
                     <label class="form-label">Password</label>
                     <input type="password" name="password" class="form-input" placeholder="Leave blank to auto-generate">
                 </div>
                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">
-                        <i class="fas fa-save"></i> Save Advisor
+                        <i class="fas fa-save"></i> Save User
                     </button>
-                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeAdvisorFormModal()">
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeUserFormModal()">
                         <i class="fas fa-times"></i> Cancel
                     </button>
                 </div>
@@ -471,25 +428,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     <!-- Scripts -->
     <script src="../js/main.js"></script>
     <script>
-        // Helper function to get API base path
-        function getApiPath(endpoint) {
-            const currentUrl = window.location.href;
-            const url = new URL(currentUrl);
-            const pathParts = url.pathname.split('/').filter(Boolean);
-            let rootIndex = pathParts.indexOf('sis');
-            if (rootIndex === -1) rootIndex = 0;
-            const projectRoot = '/' + pathParts.slice(0, rootIndex + 1).join('/');
-            return projectRoot + '/public/api/' + endpoint;
-        }
-
-        // Filter advisors - server-side filtering
-        function filterAdvisors() {
-            const searchTerm = encodeURIComponent(document.getElementById('advisorSearch').value.trim());
-            const departmentFilter = encodeURIComponent(document.getElementById('departmentFilter').value);
+        // Filter users - server-side filtering
+        function filterUsers() {
+            const searchTerm = encodeURIComponent(document.getElementById('userSearch').value.trim());
 
             const params = [];
             if (searchTerm) params.push('search=' + searchTerm);
-            if (departmentFilter) params.push('department=' + departmentFilter);
 
             const query = params.length ? ('?' + params.join('&')) : '';
             window.location.href = window.location.pathname + query;
@@ -498,59 +442,53 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         // Toggle select all
         function toggleSelectAll() {
             const selectAllCheckbox = document.getElementById('selectAll');
-            const advisorCheckboxes = document.querySelectorAll('.advisor-checkbox');
+            const userCheckboxes = document.querySelectorAll('.user-checkbox');
 
-            advisorCheckboxes.forEach(checkbox => {
+            userCheckboxes.forEach(checkbox => {
                 checkbox.checked = selectAllCheckbox.checked;
             });
         }
 
-        // Advisor actions
-        function viewAdvisor(advisorId) {
-            showNotification(`Viewing advisor ${advisorId}...`, 'info');
+        // User actions
+        function viewUser(userId) {
+            showNotification(`Viewing user ${userId}...`, 'info');
         }
 
-        function editAdvisor(advisorId) {
-            const apiPath = getApiPath('advisors.php?action=get&id=' + advisorId);
-            fetch(apiPath)
+        function editUser(userId) {
+            fetch('/sis/public/api/users.php?action=get&id=' + userId)
                 .then(r => r.json())
                 .then(result => {
                     if (result.success && result.data) {
-                        const advisor = result.data;
-                        const form = document.getElementById('advisorForm');
-                        form.elements['first_name'].value = advisor.first_name || '';
-                        form.elements['last_name'].value = advisor.last_name || '';
-                        form.elements['email'].value = advisor.email || '';
-                        form.elements['phone'].value = advisor.phone || '';
-                        form.elements['department'].value = advisor.department || '';
-                        form.elements['specialization'].value = advisor.specialization || '';
-                        form.elements['office_location'].value = advisor.office_location || '';
-                        form.elements['office_hours'].value = advisor.office_hours || '';
-                        document.getElementById('advisorId').value = advisor.id;
-                        document.getElementById('advisorModalTitle').textContent = 'Edit Advisor';
-                        openModal('advisorFormModal');
+                        const user = result.data;
+                        const form = document.getElementById('userForm');
+                        form.elements['first_name'].value = user.first_name || '';
+                        form.elements['last_name'].value = user.last_name || '';
+                        form.elements['email'].value = user.email || '';
+                        form.elements['phone'].value = user.phone || '';
+                        document.getElementById('userId').value = user.id;
+                        document.getElementById('userModalTitle').textContent = 'Edit User';
+                        openModal('userFormModal');
                     } else {
-                        showNotification('Failed to load advisor', 'error');
+                        showNotification('Failed to load user', 'error');
                     }
                 })
-                .catch(e => { console.error(e); showNotification('Error loading advisor', 'error'); });
+                .catch(e => { console.error(e); showNotification('Error loading user', 'error'); });
         }
 
-        function deleteAdvisor(advisorId) {
-            if (confirm('Are you sure you want to delete this advisor?')) {
-                const apiPath = getApiPath('advisors.php?action=delete');
-                fetch(apiPath, {
+        function deleteUser(userId) {
+            if (confirm('Are you sure you want to delete this user?')) {
+                fetch('/sis/public/api/users.php?action=delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: advisorId })
+                    body: JSON.stringify({ id: userId })
                 })
                 .then(r => r.json())
                 .then(result => {
                     if (result.success) {
-                        showNotification('Advisor deleted successfully', 'success');
+                        showNotification('User deleted successfully', 'success');
                         setTimeout(() => location.reload(), 500);
                     } else {
-                        showNotification(result.message || 'Failed to delete advisor', 'error');
+                        showNotification(result.message || 'Failed to delete user', 'error');
                     }
                 })
                 .catch(e => { console.error(e); showNotification('An error occurred', 'error'); });
@@ -558,26 +496,24 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         }
 
         // General actions
-        function addAdvisor() {
-            document.getElementById('advisorForm').reset();
-            document.getElementById('advisorId').value = '';
-            document.getElementById('advisorModalTitle').textContent = 'Add Advisor';
-            openModal('advisorFormModal');
+        function addUser() {
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('userModalTitle').textContent = 'Add User';
+            openModal('userFormModal');
         }
 
-        function exportAdvisors() {
-            const searchTerm = encodeURIComponent(document.getElementById('advisorSearch').value.trim());
-            const departmentFilter = encodeURIComponent(document.getElementById('departmentFilter').value);
+        function exportUsers() {
+            const searchTerm = encodeURIComponent(document.getElementById('userSearch').value.trim());
             const params = [];
             if (searchTerm) params.push('search=' + searchTerm);
-            if (departmentFilter) params.push('department=' + departmentFilter);
             params.push('export=csv');
             const query = params.length ? ('?' + params.join('&')) : '';
             window.location.href = window.location.pathname + query;
         }
 
-        function refreshAdvisors() {
-            showNotification('Refreshing advisor data...', 'info');
+        function refreshUsers() {
+            showNotification('Refreshing user data...', 'info');
             setTimeout(() => {
                 location.reload();
             }, 500);
@@ -623,8 +559,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             overlay.setAttribute('hidden', '');
         }
 
-        function closeAdvisorFormModal() {
-            const modal = document.getElementById('advisorFormModal');
+        function closeUserFormModal() {
+            const modal = document.getElementById('userFormModal');
             if (!modal) return;
             modal.classList.remove('active');
             modal.setAttribute('hidden', '');
@@ -634,56 +570,41 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         }
 
         // Form submission handler
-        async function handleAdvisorFormSubmit(e) {
+        async function handleUserFormSubmit(e) {
             e.preventDefault();
-            const form = document.getElementById('advisorForm');
+            const form = document.getElementById('userForm');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData);
-            const advisorId = data.id;
+            const userId = data.id;
             delete data.id;
 
             // Remove empty fields
             Object.keys(data).forEach(k => !data[k] && delete data[k]);
 
             try {
-                const action = advisorId ? 'update' : 'create';
-                if (advisorId) data.id = advisorId;
+                const action = userId ? 'update' : 'create';
+                if (userId) data.id = userId;
 
-                // Get API path using helper function
-                const apiPath = getApiPath('advisors.php?action=' + action);
-                console.log('API Path:', apiPath); // Debug log
-                const response = await fetch(apiPath, {
+                const response = await fetch('/sis/public/api/users.php?action=' + action, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
 
-                // Check if response is OK
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('HTTP Error:', response.status, errorText);
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        showNotification(errorJson.message || 'Failed to save advisor', 'error');
-                    } catch {
-                        showNotification('Server error: ' + response.status, 'error');
-                    }
-                    return;
-                }
-
                 const result = await response.json();
                 if (result.success) {
-                    showNotification(result.message || 'Advisor saved successfully', 'success');
-                    closeAdvisorFormModal();
+                    showNotification(result.message || 'User saved successfully', 'success');
+                    closeUserFormModal();
                     setTimeout(() => location.reload(), 500);
                 } else {
-                    showNotification(result.message || 'Failed to save advisor', 'error');
+                    showNotification(result.message || 'Failed to save user', 'error');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showNotification('An error occurred: ' + error.message, 'error');
+                showNotification('An error occurred', 'error');
             }
         }
     </script>
 </body>
 </html>
+

@@ -1,0 +1,32 @@
+-- Create calendar_events table for managing university events, exams, and schedules
+CREATE TABLE IF NOT EXISTS `calendar_events` (
+    `id` INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL,
+    `description` TEXT NULL,
+    `event_type` ENUM('exam', 'assignment', 'holiday', 'meeting', 'event', 'class', 'deadline') NOT NULL DEFAULT 'event',
+    `start_date` DATE NOT NULL,
+    `start_time` TIME NULL,
+    `end_date` DATE NULL,
+    `end_time` TIME NULL,
+    `all_day` BOOLEAN DEFAULT FALSE,
+    `location` VARCHAR(255) NULL,
+    `department` VARCHAR(255) NULL,
+    `course_id` INT(11) UNSIGNED NULL,
+    `course_code` VARCHAR(50) NULL,
+    `created_by` INT(11) UNSIGNED NULL,
+    `affected_users` TEXT NULL COMMENT 'JSON array of user IDs or role types',
+    `recurring` BOOLEAN DEFAULT FALSE,
+    `recurrence_pattern` VARCHAR(100) NULL COMMENT 'daily, weekly, monthly, yearly',
+    `recurrence_end_date` DATE NULL,
+    `reminder_sent` BOOLEAN DEFAULT FALSE,
+    `status` ENUM('active', 'cancelled', 'completed', 'postponed') DEFAULT 'active',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_event_type` (`event_type`),
+    INDEX `idx_start_date` (`start_date`),
+    INDEX `idx_department` (`department`),
+    INDEX `idx_course_id` (`course_id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

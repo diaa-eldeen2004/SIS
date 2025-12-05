@@ -47,16 +47,12 @@ class AuthController {
         $firstName = trim($input['firstName']);
         $lastName = trim($input['lastName']);
         $email = trim($input['email']);
+        $phone = isset($input['phone']) ? trim($input['phone']) : '';
         $password = $input['password'];
         $confirmPassword = $input['confirmPassword'];
 
-        // Validate and sanitize role (only allow non-privileged roles for self-signup)
-        $allowedRoles = ['user', 'student', 'advisor', 'doctor','admin','it'];
-        $role = isset($input['role']) ? trim($input['role']) : 'user';
-        if (!in_array($role, $allowedRoles, true)) {
-            // If user tries to assign admin/it or invalid role, default to 'user'
-            $role = 'user';
-        }
+        // Force role to 'user' for all public signups - only admins can create other roles
+        $role = 'user';
 
         // Validate email format
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -107,6 +103,7 @@ class AuthController {
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'email' => $email,
+                'phone' => $phone,
                 'password' => $hashedPassword,
                 'role' => $role
             ]);

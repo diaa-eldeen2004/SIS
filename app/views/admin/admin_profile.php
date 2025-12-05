@@ -1,10 +1,91 @@
+<?php
+// Dynamic admin profile powered by DB
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once __DIR__ . '/../../core/Database.php';
+
+$db = Database::getInstance()->getConnection();
+
+// Get logged-in admin ID from session
+$adminId = $_SESSION['user']['id'] ?? null;
+$adminEmail = $_SESSION['user']['email'] ?? null;
+
+// Initialize default values
+$admin = null;
+$totalStudents = 0;
+$totalDoctors = 0;
+$totalCourses = 0;
+$totalReports = 0;
+$studentsThisMonth = 0;
+$doctorsThisMonth = 0;
+$coursesThisSemester = 0;
+
+// Fetch admin data
+if ($adminId && $adminEmail) {
+    try {
+        // Try to get from admins table first
+        $stmt = $db->prepare("SELECT id, first_name, last_name, email, phone, admin_level, permissions, created_at FROM admins WHERE id = ? OR email = ?");
+        $stmt->execute([$adminId, $adminEmail]);
+        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If not found in admins table, try users table
+        if (!$admin) {
+            $stmt = $db->prepare("SELECT id, first_name, last_name, email, phone, created_at FROM users WHERE id = ? OR email = ?");
+            $stmt->execute([$adminId, $adminEmail]);
+            $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($admin) {
+                $admin['admin_level'] = 'admin';
+            }
+        }
+        
+        // Fetch statistics
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM students");
+        $totalStudents = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM students WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+        $studentsThisMonth = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM doctors");
+        $totalDoctors = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM doctors WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+        $doctorsThisMonth = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM courses");
+        $totalCourses = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM courses WHERE YEAR(created_at)=YEAR(CURRENT_DATE()) AND MONTH(created_at)=MONTH(CURRENT_DATE())");
+        $coursesThisSemester = (int)$stmt->fetchColumn();
+        
+        $stmt = $db->query("SELECT COUNT(*) as cnt FROM reports");
+        $totalReports = (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        // Handle gracefully if tables don't exist
+        error_log('Profile page database error: ' . $e->getMessage());
+    }
+}
+
+// Default values if admin not found
+if (!$admin) {
+    $admin = [
+        'first_name' => 'Admin',
+        'last_name' => 'User',
+        'email' => $adminEmail ?? 'admin@university.edu',
+        'phone' => '',
+        'admin_level' => 'admin',
+        'permissions' => null
+    ];
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - Admin Portal</title>
-    <link rel="stylesheet" href="../../css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +119,15 @@
             </a>
             <a href="admin_manage_courses.php" class="nav-item">
                 <i class="fas fa-book"></i> Manage Courses
+            </a>
+            <a href="admin_manage_advisor.php" class="nav-item">
+                <i class="fas fa-user-tie"></i> Manage Advisors
+            </a>
+            <a href="admin_manage_it.php" class="nav-item">
+                <i class="fas fa-laptop-code"></i> Manage IT Officers
+            </a>
+            <a href="admin_manage_user.php" class="nav-item">
+                <i class="fas fa-users"></i> Manage Users
             </a>
             <a href="admin_reports.php" class="nav-item">
                 <i class="fas fa-chart-bar"></i> Reports
@@ -92,24 +182,24 @@
                             </button>
                         </div>
                         <div style="flex: 1;">
-                            <h2 style="margin: 0 0 0.5rem 0; color: var(--text-primary);">Dr. Sarah Anderson</h2>
+                            <h2 style="margin: 0 0 0.5rem 0; color: var(--text-primary);"><?php echo htmlspecialchars(($admin['first_name'] ?? '') . ' ' . ($admin['last_name'] ?? '')); ?></h2>
                             <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 1.1rem;">System Administrator</p>
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                                 <div>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Department</div>
-                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--primary-color);">Information Technology</div>
-                                </div>
-                                <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Access Level</div>
-                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--accent-color);">Super Admin</div>
+                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--accent-color);"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $admin['admin_level'] ?? 'admin'))); ?></div>
                                 </div>
                                 <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Email</div>
-                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">admin@university.edu</div>
+                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($admin['email'] ?? 'N/A'); ?></div>
                                 </div>
                                 <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Phone</div>
-                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">+1 (555) 123-4567</div>
+                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($admin['phone'] ?? 'N/A'); ?></div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Member Since</div>
+                                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);"><?php echo $admin['created_at'] ? htmlspecialchars(date('M Y', strtotime($admin['created_at']))) : 'N/A'; ?></div>
                                 </div>
                             </div>
                         </div>
@@ -124,28 +214,28 @@
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-user-graduate"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">1,250</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalStudents); ?></div>
                         <div style="color: var(--text-secondary);">Students Managed</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--accent-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-chalkboard-teacher"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">85</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalDoctors); ?></div>
                         <div style="color: var(--text-secondary);">Faculty Managed</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-book"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">150</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalCourses); ?></div>
                         <div style="color: var(--text-secondary);">Courses Managed</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--warning-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-chart-bar"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">24</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($totalReports); ?></div>
                         <div style="color: var(--text-secondary);">Reports Generated</div>
                     </div>
                 </div>
@@ -169,7 +259,7 @@
                             <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
                                 <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Full Name</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">Dr. Sarah Anderson</div>
+                                    <div style="font-weight: 600; color: var(--text-primary);" id="displayName"><?php echo htmlspecialchars(($admin['first_name'] ?? '') . ' ' . ($admin['last_name'] ?? '')); ?></div>
                                 </div>
                                 <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editField('name')">
                                     <i class="fas fa-edit"></i>
@@ -178,7 +268,7 @@
                             <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
                                 <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Email Address</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">admin@university.edu</div>
+                                    <div style="font-weight: 600; color: var(--text-primary);" id="displayEmail"><?php echo htmlspecialchars($admin['email'] ?? 'N/A'); ?></div>
                                 </div>
                                 <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editField('email')">
                                     <i class="fas fa-edit"></i>
@@ -187,7 +277,7 @@
                             <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
                                 <div>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Phone Number</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">+1 (555) 123-4567</div>
+                                    <div style="font-weight: 600; color: var(--text-primary);" id="displayPhone"><?php echo htmlspecialchars($admin['phone'] ?? 'N/A'); ?></div>
                                 </div>
                                 <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editField('phone')">
                                     <i class="fas fa-edit"></i>
@@ -195,30 +285,15 @@
                             </div>
                             <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
                                 <div>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Department</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">Information Technology</div>
+                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Access Level</div>
+                                    <div style="font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $admin['admin_level'] ?? 'admin'))); ?></div>
                                 </div>
-                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editField('department')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            </div>
-                            <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
-                                <div>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Office Location</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">Admin Building, Room 101</div>
-                                </div>
-                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editField('office')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
                             </div>
                             <div class="info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem;">
                                 <div>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Last Login</div>
-                                    <div style="font-weight: 600; color: var(--text-primary);">Today at 9:15 AM</div>
+                                    <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Member Since</div>
+                                    <div style="font-weight: 600; color: var(--text-primary);"><?php echo $admin['created_at'] ? htmlspecialchars(date('F Y', strtotime($admin['created_at']))) : 'N/A'; ?></div>
                                 </div>
-                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewLoginHistory()">
-                                    <i class="fas fa-history"></i>
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -244,15 +319,15 @@
                                 </div>
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);">1,250</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);"><?php echo htmlspecialchars($totalStudents); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Students</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">45</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">0</div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Pending</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);">25</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);"><?php echo htmlspecialchars($studentsThisMonth); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">New This Month</div>
                                     </div>
                                 </div>
@@ -264,15 +339,15 @@
                                 </div>
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);">85</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);"><?php echo htmlspecialchars($totalDoctors); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Faculty</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">5</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">0</div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Pending</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);">3</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);"><?php echo htmlspecialchars($doctorsThisMonth); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">New This Month</div>
                                     </div>
                                 </div>
@@ -284,15 +359,15 @@
                                 </div>
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);">150</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--primary-color);"><?php echo htmlspecialchars($totalCourses); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Courses</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">10</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-color);">0</div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">Pending</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);">8</div>
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: var(--success-color);"><?php echo htmlspecialchars($coursesThisSemester); ?></div>
                                         <div style="font-size: 0.8rem; color: var(--text-secondary);">New This Semester</div>
                                     </div>
                                 </div>
@@ -312,18 +387,18 @@
                         </h2>
                     </div>
                     <div style="padding: 1.5rem;">
-                        <form class="password-form">
+                        <form class="password-form" id="passwordForm" onsubmit="handlePasswordUpdate(event)">
                             <div class="form-group">
                                 <label class="form-label">Current Password</label>
-                                <input type="password" class="form-input" placeholder="Enter current password" required>
+                                <input type="password" name="current_password" id="currentPassword" class="form-input" placeholder="Enter current password" required>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">New Password</label>
-                                <input type="password" class="form-input" placeholder="Enter new password" required>
+                                <input type="password" name="new_password" id="newPassword" class="form-input" placeholder="Enter new password" required>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Confirm New Password</label>
-                                <input type="password" class="form-input" placeholder="Confirm new password" required>
+                                <input type="password" name="confirm_password" id="confirmPassword" class="form-input" placeholder="Confirm new password" required>
                             </div>
                             <div style="display: flex; gap: 1rem;">
                                 <button type="submit" class="btn btn-primary">
@@ -403,6 +478,49 @@
         </div>
     </main>
 
+    <!-- Modal Overlay (shared for all modals) -->
+    <div id="modalOverlay" class="modal-overlay" onclick="closeAllModals()" hidden></div>
+
+    <!-- Edit Profile Modal -->
+    <div id="profileEditModal" class="modal" data-header-style="primary" hidden>
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <button class="modal-close" onclick="closeProfileEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="profileEditForm" onsubmit="handleProfileEditSubmit(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" name="first_name" id="editFirstName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" name="last_name" id="editLastName" class="form-input" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" name="email" id="editEmail" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" name="phone" id="editPhone" class="form-input" placeholder="e.g., +1234567890">
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeProfileEditModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Chat Widget -->
     <div class="chat-widget">
         <button class="chat-toggle" onclick="toggleChat()">
@@ -475,7 +593,7 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="../../js/main.js"></script>
+    <script src="../js/main.js"></script>
     <script>
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -490,28 +608,184 @@
                 });
             }
 
-            // Set up password form submission
-            const passwordForm = document.querySelector('.password-form');
-            if (passwordForm) {
-                passwordForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    showNotification('Password updated successfully!', 'success');
-                    this.reset();
-                });
-            }
         });
 
         // Profile actions
         function editProfile() {
-            showNotification('Opening profile editor...', 'info');
+            openProfileEditModal();
         }
 
         function editPersonalInfo() {
-            showNotification('Opening personal information editor...', 'info');
+            openProfileEditModal();
         }
 
         function editField(fieldName) {
-            showNotification(`Editing ${fieldName} field...`, 'info');
+            openFieldEditModal(fieldName);
+        }
+
+        async function handlePasswordUpdate(e) {
+            e.preventDefault();
+            const form = document.getElementById('passwordForm');
+            const formData = new FormData(form);
+            const currentPassword = formData.get('current_password');
+            const newPassword = formData.get('new_password');
+            const confirmPassword = formData.get('confirm_password');
+
+            if (newPassword !== confirmPassword) {
+                showNotification('New passwords do not match', 'error');
+                return;
+            }
+
+            if (newPassword.length < 8) {
+                showNotification('Password must be at least 8 characters long', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/sis/public/api/auth.php?action=update-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Password updated successfully!', 'success');
+                    form.reset();
+                } else {
+                    showNotification(result.message || 'Failed to update password', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred', 'error');
+            }
+        }
+
+        function openProfileEditModal() {
+            // Populate form with current admin data
+            document.getElementById('editFirstName').value = '<?php echo htmlspecialchars($admin['first_name'] ?? ''); ?>';
+            document.getElementById('editLastName').value = '<?php echo htmlspecialchars($admin['last_name'] ?? ''); ?>';
+            document.getElementById('editEmail').value = '<?php echo htmlspecialchars($admin['email'] ?? ''); ?>';
+            document.getElementById('editPhone').value = '<?php echo htmlspecialchars($admin['phone'] ?? ''); ?>';
+            openModal('profileEditModal');
+        }
+
+        function openFieldEditModal(fieldName) {
+            // For now, open the full profile edit modal
+            openProfileEditModal();
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            document.querySelectorAll('.modal.active').forEach(m => {
+                if (m.id !== modalId) {
+                    m.classList.remove('active');
+                    m.setAttribute('hidden', '');
+                }
+            });
+
+            const modal = document.getElementById(modalId);
+            const overlay = document.getElementById('modalOverlay');
+            if (!modal) return;
+
+            overlay.classList.add('active');
+            overlay.removeAttribute('hidden');
+
+            modal.classList.add('active');
+            modal.removeAttribute('hidden');
+
+            const header = modal.querySelector('.modal-header');
+            if (header) {
+                header.classList.remove('modal-header--primary','modal-header--secondary','modal-header--accent');
+                const style = modal.dataset.headerStyle || 'primary';
+                header.classList.add('modal-header--' + style);
+            }
+
+            const firstInput = modal.querySelector('input, select, textarea, button');
+            if (firstInput) firstInput.focus();
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(m => {
+                m.classList.remove('active');
+                m.setAttribute('hidden', '');
+            });
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        function closeProfileEditModal() {
+            const modal = document.getElementById('profileEditModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+            modal.setAttribute('hidden', '');
+            const overlay = document.getElementById('modalOverlay');
+            overlay.classList.remove('active');
+            overlay.setAttribute('hidden', '');
+        }
+
+        // Form submission handler for profile edit
+        async function handleProfileEditSubmit(e) {
+            e.preventDefault();
+            const form = document.getElementById('profileEditForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+
+            // Remove empty fields
+            Object.keys(data).forEach(k => !data[k] && delete data[k]);
+
+            try {
+                // Determine if admin is in admins table or users table
+                const adminId = <?php echo $adminId ?? 'null'; ?>;
+                if (!adminId) {
+                    showNotification('Admin ID not found', 'error');
+                    return;
+                }
+
+                // Try to update in admins table first, fallback to users table
+                let response = await fetch('/sis/public/api/admins.php?action=update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: adminId, ...data })
+                });
+
+                let result = await response.json();
+                
+                // If admins API fails, try updating via users API
+                if (!result.success) {
+                    response = await fetch('/sis/public/api/users.php?action=update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: adminId, ...data })
+                    });
+                    result = await response.json();
+                }
+
+                if (result.success) {
+                    showNotification('Profile updated successfully', 'success');
+                    // Update display immediately
+                    if (data.first_name && data.last_name) {
+                        document.getElementById('displayName').textContent = data.first_name + ' ' + data.last_name;
+                    }
+                    if (data.email) {
+                        document.getElementById('displayEmail').textContent = data.email;
+                    }
+                    if (data.phone !== undefined) {
+                        document.getElementById('displayPhone').textContent = data.phone || 'N/A';
+                    }
+                    closeProfileEditModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification(result.message || 'Failed to update profile', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred', 'error');
+            }
         }
 
         function changeProfilePicture() {

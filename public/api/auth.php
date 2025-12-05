@@ -2,11 +2,15 @@
 
 // Set error reporting (disable in production)
 error_reporting(E_ALL);
-// Keep display_errors off in production
+// Log errors but don't display them (to avoid breaking JSON)
 ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
-// Set JSON header
+// Set JSON header FIRST before any output
 header('Content-Type: application/json');
+
+// Start output buffering to catch any errors
+ob_start();
 
 // Handle CORS
 header('Access-Control-Allow-Origin: *');
@@ -19,28 +23,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Include necessary files
-require_once __DIR__ . '/../../app/controllers/AuthController.php';
+try {
+    require_once __DIR__ . '/../../app/controllers/AuthController.php';
+} catch (Throwable $e) {
+    ob_clean(); // Clear any output
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Failed to load controller',
+        'error' => $e->getMessage()
+    ]);
+    exit;
+}
 
 $action = $_GET['action'] ?? '';
 
-$authController = new AuthController();
+try {
+    $authController = new AuthController();
+} catch (Throwable $e) {
+    ob_clean(); // Clear any output
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Failed to initialize controller',
+        'error' => $e->getMessage()
+    ]);
+    exit;
+}
 
-switch ($action) {
-    case 'signup':
-        $authController->signup();
-        break;
-    case 'login':
-        $authController->login();
-        break;
-    case 'request-password-reset':
-        $authController->requestPasswordReset();
-        break;
-    case 'reset-password':
-        $authController->resetPassword();
-        break;
-    default:
-        http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Route not found']);
-        break;
+try {
+    switch ($action) {
+        case 'signup':
+            $authController->signup();
+            break;
+        case 'login':
+            $authController->login();
+            break;
+        case 'request-password-reset':
+            $authController->requestPasswordReset();
+            break;
+        case 'reset-password':
+            $authController->resetPassword();
+            break;
+        default:
+            ob_clean(); // Clear any output
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Route not found']);
+            break;
+    }
+} catch (Throwable $e) {
+    ob_clean(); // Clear any output
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'An error occurred',
+        'error' => $e->getMessage()
+    ]);
 }
 

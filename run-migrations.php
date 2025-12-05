@@ -47,17 +47,39 @@ try {
             // Read SQL file
             $sql = file_get_contents($migrationFile);
             
+            // Remove SQL comments (-- style comments)
+            $sql = preg_replace('/--.*$/m', '', $sql);
+            
             // Split by semicolon to handle multiple statements
             $statements = array_filter(array_map('trim', explode(';', $sql)));
             
+            $executed = 0;
             foreach ($statements as $statement) {
-                if (!empty($statement)) {
-                    // Execute statement
-                    $db->prepare($statement)->execute();
+                $statement = trim($statement);
+                // Skip empty statements and comments
+                if (!empty($statement) && !preg_match('/^\s*$/', $statement)) {
+                    try {
+                        // Use exec() for DDL statements (CREATE TABLE, ALTER TABLE, etc.)
+                        // as they may not work with prepare/execute
+                        $db->exec($statement);
+                        $executed++;
+                    } catch (PDOException $e) {
+                        // If table already exists, that's okay (IF NOT EXISTS)
+                        if (strpos($e->getMessage(), 'already exists') !== false || 
+                            strpos($e->getMessage(), 'Duplicate') !== false) {
+                            // Table already exists, skip
+                            continue;
+                        }
+                        throw $e;
+                    }
                 }
             }
             
-            echo "<span style='color: green;'>✓ Success</span></li>\n";
+            if ($executed > 0) {
+                echo "<span style='color: green;'>✓ Success ($executed statement(s) executed)</span></li>\n";
+            } else {
+                echo "<span style='color: orange;'>⚠ Skipped (already exists or no statements)</span></li>\n";
+            }
         } catch (Exception $e) {
             echo "<span style='color: red;'>✗ Error: " . htmlspecialchars($e->getMessage()) . "</span></li>\n";
         }
@@ -65,7 +87,10 @@ try {
     
     echo "</ul>\n";
     echo "<p><strong>Migrations completed!</strong></p>\n";
-    echo "<p><a href='app/views/home.php'>Return to Home</a></p>\n";
+    echo "<p style='margin-top: 2rem;'>";
+    echo "<a href='app/views/home.php' style='margin-right: 1rem; padding: 0.5rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 4px;'>Return to Home</a>";
+    echo "<a href='app/views/admin/admin_manage_students.php' style='padding: 0.5rem 1rem; background: #10b981; color: white; text-decoration: none; border-radius: 4px;'>Go to Students Page</a>";
+    echo "</p>\n";
     
 } catch (Exception $e) {
     echo "<h2 style='color: red;'>Database Connection Error</h2>\n";

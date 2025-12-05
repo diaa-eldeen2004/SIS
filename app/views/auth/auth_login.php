@@ -304,8 +304,8 @@
                 // Resolve API path relative to current page
                 // Current page: /sis/app/views/auth/auth_login.php
                 // Target: /sis/public/api/auth.php
-                // Relative: ../../public/api/auth.php
-                let apiPath = new URL('../../public/api/auth.php?action=login', window.location.href).href;
+                // Relative: ../../../public/api/auth.php (go up 3 levels: auth -> views -> app -> root)
+                let apiPath = new URL('../../../public/api/auth.php?action=login', window.location.href).href;
                 console.log('Login API path:', apiPath);
 
                 let response = await fetch(apiPath, {
@@ -362,29 +362,27 @@
 
                 if (result.success && result.user) {
                     const role = result.user.role || 'user';
+                    
+                    // Debug: Log the role to console
+                    console.log('Login successful. User role detected:', role);
+                    console.log('Full user object:', result.user);
+                    
                     showNotification('Login successful! Redirecting...', 'success');
                     
-                    // Redirect based on user role
-                    let redirectUrl;
-                    switch(role) {
-                        case 'student':
-                            redirectUrl = '../student/student_dashboard.php';
-                            break;
-                        case 'doctor':
-                            redirectUrl = '../doctor/doctor_dashboard.php';
-                            break;
-                        case 'admin':
-                            redirectUrl = '../admin/admin_dashboard.php';
-                            break;
-                        case 'advisor':
-                            redirectUrl = '../advisor/advisor_dashboard.php';
-                            break;
-                        case 'it':
-                            redirectUrl = '../it/it_dashboard.php';
-                            break;
-                        default:
-                            redirectUrl = '../home.php';
-                    }
+                    // Redirect based on user role - matches home.php role mapping
+                    // System determines role from email and redirects accordingly
+                    const roleDestinations = {
+                        'doctor': '../doctor/doctor_dashboard.php',
+                        'admin': '../admin/admin_dashboard.php',
+                        'student': '../student/student_dashboard.php',
+                        'advisor': '../advisor/advisor_dashboard.php',
+                        'it': '../it/it_dashboard.php',
+                        'user': '../home.php'  // Generic logged-in user should return to home as requested
+                    };
+                    
+                    const redirectUrl = roleDestinations[role] || '../home.php';
+                    
+                    console.log('Redirecting to:', redirectUrl, 'for role:', role);
                     
                     setTimeout(() => {
                         window.location.href = redirectUrl;

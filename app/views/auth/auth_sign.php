@@ -258,19 +258,12 @@
                     </div>
                 </div>
 
-                <!-- Role Selector -->
+                <!-- Phone -->
                 <div class="form-group">
-                    <label class="form-label" for="role">Select Role</label>
+                    <label class="form-label" for="phone">Phone Number</label>
                     <div class="input-group">
-                        <i class="fas fa-user-tag"></i>
-                        <select id="role" name="role" class="form-input">
-                            <option value="admin">Admin</option>
-                            <option value="user" selected>User</option>
-                            <option value="student">Student</option>
-                            <option value="advisor">Advisor</option>
-                            <option value="doctor">Doctor</option>
-                            <option value="it">IT</option>
-                        </select>
+                        <i class="fas fa-phone"></i>
+                        <input type="tel" id="phone" name="phone" class="form-input" placeholder="Enter your phone number">
                     </div>
                 </div>
 
@@ -374,7 +367,7 @@
             }
             
             // Basic validation
-            const requiredFields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'role'];
+            const requiredFields = ['firstName', 'lastName', 'email', 'password', 'confirmPassword'];
             for (let field of requiredFields) {
                 if (!formData.get(field)) {
                     showNotification('Please fill in all required fields', 'error');
@@ -388,14 +381,15 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
             
-            // Prepare data for API
+            // Prepare data for API - role is always 'user' for signups
             const data = {
                 firstName: formData.get('firstName'),
                 lastName: formData.get('lastName'),
                 email: formData.get('email'),
+                phone: formData.get('phone') || '',
                 password: password,
                 confirmPassword: confirmPassword,
-                role: formData.get('role') || 'user'
+                role: 'user' // Always 'user' for public signups
             };
             
             try {

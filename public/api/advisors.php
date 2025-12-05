@@ -1,5 +1,5 @@
 <?php
-// Students API
+// Advisors API
 ob_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -11,18 +11,10 @@ header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { ob_clean(); http_response_code(200); exit; }
 
 try {
-    require_once __DIR__ . '/../../app/controllers/StudentController.php';
+    require_once __DIR__ . '/../../app/controllers/AdvisorController.php';
     ob_clean();
-} catch (Throwable $e) {
-    ob_clean();
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Error loading controller: ' . $e->getMessage()]);
-    exit;
-}
-
-try {
     $action = $_GET['action'] ?? '';
-    $ctrl = new StudentController();
+    $ctrl = new AdvisorController();
     switch ($action) {
         case 'list':
             $ctrl->list();
@@ -39,16 +31,6 @@ try {
         case 'delete':
             $ctrl->delete();
             break;
-        case 'import':
-            $ctrl->import();
-            break;
-        case 'bulk-update':
-            $ctrl->bulkUpdate();
-            break;
-        case 'export':
-            // export triggers a CSV download (not JSON)
-            $ctrl->exportCsv();
-            break;
         default:
             http_response_code(404);
             echo json_encode(['success'=>false,'message'=>'Route not found']);
@@ -59,3 +41,4 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
 }
+

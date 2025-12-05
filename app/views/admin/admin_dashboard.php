@@ -39,6 +39,15 @@
             <a href="admin_manage_courses.php" class="nav-item">
                 <i class="fas fa-book"></i> Manage Courses
             </a>
+            <a href="admin_manage_advisor.php" class="nav-item">
+                <i class="fas fa-user-tie"></i> Manage Advisors
+            </a>
+            <a href="admin_manage_it.php" class="nav-item">
+                <i class="fas fa-laptop-code"></i> Manage IT Officers
+            </a>
+            <a href="admin_manage_user.php" class="nav-item">
+                <i class="fas fa-users"></i> Manage Users
+            </a>
             <a href="admin_reports.php" class="nav-item">
                 <i class="fas fa-chart-bar"></i> Reports
             </a>
@@ -48,10 +57,10 @@
             <a href="admin_profile.php" class="nav-item">
                 <i class="fas fa-user"></i> Profile
             </a>
-            <a href="../app/settings.php" class="nav-item">
+            <a href="../settings.php" class="nav-item">
                 <i class="fas fa-cog"></i> Settings
             </a>
-            <a href="../app/logout.php" class="nav-item">
+            <a href="../auth/logout.php" class="nav-item">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </nav>
@@ -428,7 +437,7 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="../../js/main.js"></script>
+    <script src="../js/main.js"></script>
     <script>
         // Resolve alert
         function resolveAlert(alertId) {

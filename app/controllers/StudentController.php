@@ -9,44 +9,69 @@ class StudentController {
     }
 
     public function list() {
+        ob_clean();
         header('Content-Type: application/json');
-        $filters = [];
-        if (!empty($_GET['search'])) $filters['search'] = $_GET['search'];
-        if (!empty($_GET['year'])) $filters['year'] = $_GET['year'];
-        if (!empty($_GET['major'])) $filters['major'] = $_GET['major'];
-        if (!empty($_GET['status'])) $filters['status'] = $_GET['status'];
+        try {
+            $filters = [];
+            if (!empty($_GET['search'])) $filters['search'] = $_GET['search'];
+            if (!empty($_GET['year'])) $filters['year'] = $_GET['year'];
+            if (!empty($_GET['major'])) $filters['major'] = $_GET['major'];
+            if (!empty($_GET['status'])) $filters['status'] = $_GET['status'];
 
-        $rows = $this->user->listStudents($filters);
-        echo json_encode(['success' => true, 'data' => $rows]);
+            $rows = $this->user->listStudents($filters);
+            echo json_encode(['success' => true, 'data' => $rows]);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
+        }
     }
 
     public function create() {
+        ob_clean();
         header('Content-Type: application/json');
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-            return;
-        }
-        $input = json_decode(file_get_contents('php://input'), true);
-        if ($input === null) $input = $_POST;
-
-        // Basic validation
-        $required = ['first_name','last_name','email'];
-        foreach ($required as $f) {
-            if (empty($input[$f])) {
-                http_response_code(400);
-                echo json_encode(['success'=>false,'message'=>"$f is required"]);
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['success' => false, 'message' => 'Method not allowed']);
                 return;
             }
+            $input = json_decode(file_get_contents('php://input'), true);
+            if ($input === null) $input = $_POST;
+
+            // Basic validation
+            $required = ['first_name','last_name','email'];
+            foreach ($required as $f) {
+                if (empty($input[$f])) {
+                    http_response_code(400);
+                    echo json_encode(['success'=>false,'message'=>"$f is required"]);
+                    return;
+                }
+            }
+
+            // Hash password (use provided or default)
+            $password = !empty($input['password']) ? password_hash($input['password'], PASSWORD_DEFAULT) : password_hash('changeme', PASSWORD_DEFAULT);
+            $input['password'] = $password;
+            
+            // Check if email already exists
+            if ($this->user->emailExists($input['email'])) {
+                http_response_code(409);
+                echo json_encode(['success'=>false,'message'=>'Email already registered']);
+                return;
+            }
+
+            $ok = $this->user->createStudent($input);
+            if ($ok) echo json_encode(['success'=>true,'message'=>'Student created']);
+            else { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Failed to create student']); }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'An error occurred: ' . $e->getMessage()]);
         }
-
-        // Hash password (use provided or default)
-        $password = !empty($input['password']) ? password_hash($input['password'], PASSWORD_DEFAULT) : password_hash('changeme', PASSWORD_DEFAULT);
-        $input['password'] = $password;
-
-        $ok = $this->user->createStudent($input);
-        if ($ok) echo json_encode(['success'=>true,'message'=>'Student created']);
-        else { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Failed to create student']); }
     }
 
     public function update() {
@@ -103,10 +128,11 @@ class StudentController {
      */
     public function get() {
         header('Content-Type: application/json');
+        require_once __DIR__ . '/../core/Database.php';
         $db = Database::getInstance()->getConnection();
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Invalid id']); return; }
-        $stmt = $db->prepare("SELECT id, student_number, first_name, last_name, email, major, minor, gpa, status, created_at FROM users WHERE id = ? AND role = 'student'");
+        $stmt = $db->prepare("SELECT id, student_number, first_name, last_name, email, phone, year_enrolled, major, minor, gpa, status, created_at FROM students WHERE id = ?");
         $stmt->execute([$id]);
         $student = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($student) echo json_encode(['success'=>true,'data'=>$student]);
