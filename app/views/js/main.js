@@ -87,22 +87,34 @@ function toggleSidebar() {
 function expandSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
+    const sidebarToggle = document.querySelector('.sidebar-toggle i');
     
     if (sidebar && mainContent) {
         sidebar.classList.remove('collapsed');
         mainContent.classList.remove('sidebar-collapsed');
         sidebarOpen = true;
+        
+        // Update toggle icon
+        if (sidebarToggle) {
+            sidebarToggle.className = 'fas fa-bars';
+        }
     }
 }
 
 function collapseSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
+    const sidebarToggle = document.querySelector('.sidebar-toggle i');
     
     if (sidebar && mainContent) {
         sidebar.classList.add('collapsed');
         mainContent.classList.add('sidebar-collapsed');
         sidebarOpen = false;
+        
+        // Update toggle icon
+        if (sidebarToggle) {
+            sidebarToggle.className = 'fas fa-bars';
+        }
     }
 }
 

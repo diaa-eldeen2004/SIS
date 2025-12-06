@@ -11,6 +11,42 @@ if (!empty($_SESSION['user'])) {
 if (!$isLoggedIn && !empty($_COOKIE['token'])) {
     $isLoggedIn = true;
 }
+
+// Determine user role when available
+$userRole = null;
+if (!empty($_SESSION['user']) && !empty($_SESSION['user']['role'])) {
+    $userRole = $_SESSION['user']['role'];
+}
+
+// Map roles to dashboard destinations (paths relative to settings.php location in app/views/)
+$roleDestinations = [
+    'doctor' => 'doctor/doctor_dashboard.php',
+    'admin' => 'admin/admin_dashboard.php',
+    'student' => 'student/student_dashboard.php',
+    'advisor' => 'advisor/advisor_dashboard.php',
+    'it' => 'it/it_dashboard.php',
+    'user' => 'home.php'
+];
+
+$roleLabels = [
+    'doctor' => 'Doctor Dashboard',
+    'admin' => 'Admin Dashboard',
+    'student' => 'Student Dashboard',
+    'advisor' => 'Advisor Dashboard',
+    'it' => 'IT Dashboard',
+    'user' => 'Home'
+];
+
+$dashboardLink = '';
+$dashboardLabel = 'Dashboard';
+if (!empty($userRole)) {
+    if (!empty($roleDestinations[$userRole])) {
+        $dashboardLink = $roleDestinations[$userRole];
+    }
+    if (!empty($roleLabels[$userRole])) {
+        $dashboardLabel = $roleLabels[$userRole];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -41,7 +77,9 @@ if (!$isLoggedIn && !empty($_COOKIE['token'])) {
             <li><a href="about.php">About Us</a></li>
             <li><a href="contact.php">Contact</a></li>
             <li><a href="help_center.php">Help</a></li> 
-             <?php if (!$isLoggedIn): ?>
+            <?php if (!empty($dashboardLink)): ?>
+            <li><a href="<?php echo htmlspecialchars($dashboardLink); ?>" class="btn btn-primary"><?php echo htmlspecialchars($dashboardLabel); ?></a></li>
+            <?php elseif (!$isLoggedIn): ?>
             <li><a href="auth/auth_login.php" class="btn btn-primary">Login</a></li>
             <?php endif; ?>
         </ul>
@@ -54,7 +92,14 @@ if (!$isLoggedIn && !empty($_COOKIE['token'])) {
             <!-- Hero Section -->
             <section class="hero" style="background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); color: white; padding: 3rem 2rem; border-radius: 16px; margin-bottom: 3rem; text-align: center;">
                 <h1 style="font-size: 2.5rem; margin-bottom: 1rem; font-weight: 700;">Settings</h1>
-                <p style="font-size: 1.1rem; opacity: 0.9;">Customize your portal experience and manage your account preferences.</p>
+                <p style="font-size: 1.1rem; opacity: 0.9; margin-bottom: 1.5rem;">Customize your portal experience and manage your account preferences.</p>
+                <?php if (!empty($dashboardLink)): ?>
+                <div style="margin-top: 1.5rem;">
+                    <a href="<?php echo htmlspecialchars($dashboardLink); ?>" class="btn" style="background-color: white; color: var(--primary-color); text-decoration: none; display: inline-block; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; transition: all 0.3s ease;">
+                        <i class="fas fa-tachometer-alt"></i> Go to <?php echo htmlspecialchars($dashboardLabel); ?>
+                    </a>
+                </div>
+                <?php endif; ?>
             </section>
 
             <!-- Settings Tabs -->
@@ -303,6 +348,20 @@ if (!$isLoggedIn && !empty($_COOKIE['token'])) {
                                 </select>
                             </div>
                         </div>
+                        
+                        <!-- Role-based Dashboard Links -->
+                        <?php if (!empty($dashboardLink)): ?>
+                        <div style="margin-top: 2rem; padding: 1.5rem; background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); border-radius: 8px; border: 1px solid var(--border-color);">
+                            <h4 style="margin-bottom: 1rem; color: white;">
+                                <i class="fas fa-tachometer-alt"></i> Quick Access
+                            </h4>
+                            <p style="color: rgba(255, 255, 255, 0.9); margin-bottom: 1rem; font-size: 0.9rem;">Access your role-specific dashboard</p>
+                            <a href="<?php echo htmlspecialchars($dashboardLink); ?>" class="btn" style="background-color: white; color: var(--primary-color); text-decoration: none; display: inline-block; font-weight: 600;">
+                                <i class="fas fa-arrow-right"></i>
+                                Go to <?php echo htmlspecialchars($dashboardLabel); ?>
+                            </a>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     
                     <!-- Privacy Settings -->
