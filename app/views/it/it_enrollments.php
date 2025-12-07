@@ -329,6 +329,18 @@ try {
         }
     }
     
+    // First, let's check what's actually in the database
+    try {
+        $debugStmt = $db->query("SELECT id, student_id, course_id, status FROM student_courses LIMIT 10");
+        $debugRecords = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("=== RAW student_courses records ===");
+        foreach ($debugRecords as $rec) {
+            error_log("ID: " . ($rec['id'] ?? 'N/A') . ", Student ID: " . ($rec['student_id'] ?? 'NULL') . ", Course ID: " . ($rec['course_id'] ?? 'NULL') . ", Status: " . ($rec['status'] ?? 'NULL'));
+        }
+    } catch (Exception $e) {
+        error_log("Error checking raw records: " . $e->getMessage());
+    }
+    
     $sql = "
         SELECT $selectFields,
                CONCAT(st.first_name, ' ', st.last_name) as student_name,
@@ -345,29 +357,142 @@ try {
         LIMIT 100
     ";
     
+    // First check what's actually in student_courses table
+    try {
+        $rawCheck = $db->query("SELECT COUNT(*) as total FROM student_courses");
+        $rawCount = $rawCheck->fetch(PDO::FETCH_ASSOC);
+        error_log("=== DEBUG: Raw student_courses count = " . ($rawCount['total'] ?? 0) . " ===");
+        
+        // Get sample records
+        $sampleStmt = $db->query("SELECT id, student_id, course_id, status, enrolled_at FROM student_courses LIMIT 5");
+        $samples = $sampleStmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("=== Sample student_courses records ===");
+        foreach ($samples as $idx => $sample) {
+            error_log("Record #" . ($idx + 1) . ": ID=" . ($sample['id'] ?? 'N/A') . 
+                      ", student_id=" . ($sample['student_id'] ?? 'NULL') . 
+                      ", course_id=" . ($sample['course_id'] ?? 'NULL') . 
+                      ", status=" . ($sample['status'] ?? 'NULL') . 
+                      ", enrolled_at=" . ($sample['enrolled_at'] ?? 'NULL'));
+        }
+    } catch (Exception $e) {
+        error_log("Error checking raw data: " . $e->getMessage());
+    }
+    
     // Debug logging
     error_log("=== IT ENROLLMENTS QUERY ===");
     error_log("SQL: " . $sql);
     error_log("Params: " . json_encode($params));
     error_log("WHERE clause: " . $where);
     
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        error_log("IT Enrollments Found: " . count($enrollments));
+        
+        // If no results, try a simpler query without JOINs to see what's in the table
+        if (count($enrollments) === 0) {
+            error_log("=== NO RESULTS - Trying simpler query ===");
+            $simpleSql = "SELECT * FROM student_courses LIMIT 5";
+            $simpleStmt = $db->query($simpleSql);
+            $simpleResults = $simpleStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("Simple query (no JOINs) returned: " . count($simpleResults) . " records");
+            
+            if (count($simpleResults) > 0) {
+                error_log("=== Issue might be with JOINs - checking student/course IDs ===");
+                foreach ($simpleResults as $simple) {
+                    $studentId = $simple['student_id'] ?? null;
+                    $courseId = $simple['course_id'] ?? null;
+                    
+                    if ($studentId) {
+                        $studentCheck = $db->prepare("SELECT id, first_name, last_name FROM students WHERE id = ?");
+                        $studentCheck->execute([$studentId]);
+                        $student = $studentCheck->fetch(PDO::FETCH_ASSOC);
+                        error_log("  Student ID $studentId: " . ($student ? "EXISTS (" . ($student['first_name'] ?? '') . " " . ($student['last_name'] ?? '') . ")" : "NOT FOUND"));
+                    }
+                    
+                    if ($courseId) {
+                        $courseCheck = $db->prepare("SELECT id, course_code, course_name FROM courses WHERE id = ?");
+                        $courseCheck->execute([$courseId]);
+                        $course = $courseCheck->fetch(PDO::FETCH_ASSOC);
+                        error_log("  Course ID $courseId: " . ($course ? "EXISTS (" . ($course['course_code'] ?? '') . ")" : "NOT FOUND"));
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("ERROR executing query: " . $e->getMessage());
+        error_log("SQL Error: " . $e->getTraceAsString());
+        $enrollments = [];
+    }
     
-    error_log("IT Enrollments Found: " . count($enrollments));
+    // Also try a simpler query without WHERE to see if that's the issue
+    try {
+        $simpleSql = "
+            SELECT sc.id, sc.student_id, sc.course_id, sc.status,
+                   CONCAT(st.first_name, ' ', st.last_name) as student_name,
+                   c.course_code, c.course_name
+            FROM student_courses sc
+            LEFT JOIN students st ON sc.student_id = st.id
+            LEFT JOIN courses c ON sc.course_id = c.id
+            LIMIT 10
+        ";
+        $simpleStmt = $db->query($simpleSql);
+        $simpleResults = $simpleStmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("=== SIMPLE QUERY (no WHERE) results: " . count($simpleResults) . " ===");
+        foreach ($simpleResults as $idx => $rec) {
+            error_log("Simple Result #" . ($idx + 1) . ": ID=" . ($rec['id'] ?? 'N/A') . 
+                      ", Student=" . ($rec['student_name'] ?? 'NULL') . 
+                      ", Course=" . ($rec['course_code'] ?? 'NULL'));
+        }
+        
+        // Check if student_ids and course_ids actually exist
+        if (count($simpleResults) === 0) {
+            error_log("=== Checking if student_ids and course_ids exist ===");
+            $rawEnrollments = $db->query("SELECT student_id, course_id FROM student_courses LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rawEnrollments as $raw) {
+                $studentId = $raw['student_id'] ?? null;
+                $courseId = $raw['course_id'] ?? null;
+                
+                if ($studentId) {
+                    $studentExists = $db->prepare("SELECT COUNT(*) FROM students WHERE id = ?");
+                    $studentExists->execute([$studentId]);
+                    $studentCount = $studentExists->fetchColumn();
+                    error_log("Student ID $studentId exists: " . ($studentCount > 0 ? 'YES' : 'NO'));
+                }
+                
+                if ($courseId) {
+                    $courseExists = $db->prepare("SELECT COUNT(*) FROM courses WHERE id = ?");
+                    $courseExists->execute([$courseId]);
+                    $courseCount = $courseExists->fetchColumn();
+                    error_log("Course ID $courseId exists: " . ($courseCount > 0 ? 'YES' : 'NO'));
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error with simple query: " . $e->getMessage());
+    }
     
-    // Debug: Log pending count
+    // Debug: Log pending count and sample data
     $pendingCount = 0;
-    foreach ($enrollments as $enrollment) {
+    foreach ($enrollments as $idx => $enrollment) {
         if (empty($enrollment['status']) || $enrollment['status'] === 'pending') {
             $pendingCount++;
+        }
+        // Log first 3 records for debugging
+        if ($idx < 3) {
+            error_log("Enrollment #" . ($idx + 1) . ": ID=" . ($enrollment['id'] ?? 'N/A') . 
+                      ", Student=" . ($enrollment['student_name'] ?? 'NULL') . 
+                      ", Course=" . ($enrollment['course_code'] ?? 'NULL') . 
+                      ", Status=" . ($enrollment['status'] ?? 'NULL'));
         }
     }
     error_log("Pending requests in results: " . $pendingCount);
     
 } catch (PDOException $e) {
     error_log("Error loading enrollments: " . $e->getMessage());
+    $enrollments = []; // Ensure array is set even on error
 }
 
 // Get unique courses for filter
@@ -482,7 +607,7 @@ try {
                             <label class="form-label">Status</label>
                             <select name="status" class="form-input" onchange="this.form.submit()">
                                 <option value="">All Status</option>
-                                <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                                <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending (Need Action)</option>
                                 <option value="approved" <?php echo $statusFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
                                 <option value="rejected" <?php echo $statusFilter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                                 <option value="taking" <?php echo $statusFilter === 'taking' ? 'selected' : ''; ?>>Taking</option>
@@ -518,14 +643,30 @@ try {
                         </h2>
                     </div>
                     <div>
-                        <?php if (empty($enrollments)): ?>
+                        <?php 
+                        // Debug: Show count even if array appears empty
+                        $enrollmentCount = is_array($enrollments) ? count($enrollments) : 0;
+                        if ($enrollmentCount === 0): 
+                        ?>
                             <div style="padding: 3rem; text-align: center;">
                                 <i class="fas fa-inbox" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
-                                <p style="color: var(--text-secondary);">No enrollment requests found.</p>
+                                <p style="color: var(--text-secondary); font-weight: 500; margin-bottom: 0.5rem;">No enrollment requests found.</p>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem;">There are no enrollment requests in the system at this time.</p>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 1rem; font-style: italic;">
+                                    Debug: Total enrollments in database = <?php echo $stats['total']; ?> | Pending = <?php echo $stats['pending']; ?> | Array count = <?php echo $enrollmentCount; ?>
+                                </p>
                             </div>
                         <?php else: ?>
+                            <div style="padding: 0.5rem 1rem; background: rgba(37, 99, 235, 0.1); border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+                                <i class="fas fa-info-circle"></i> Showing <?php echo $enrollmentCount; ?> enrollment request(s)
+                            </div>
                             <?php foreach ($enrollments as $enrollment): ?>
                                 <?php
+                                // Skip if enrollment ID is missing (invalid record)
+                                if (empty($enrollment['id'])) {
+                                    continue;
+                                }
+                                
                                 $statusColor = 'var(--secondary-color)';
                                 $statusText = ucfirst($enrollment['status'] ?? 'pending');
                                 if (($enrollment['status'] ?? 'pending') === 'pending' || empty($enrollment['status'])) {
@@ -539,11 +680,18 @@ try {
                                     $statusText = 'Rejected';
                                 }
                                 $isPending = (empty($enrollment['status']) || $enrollment['status'] === 'pending');
+                                
+                                // Get student name - handle NULL from LEFT JOIN
+                                $studentName = !empty($enrollment['student_name']) ? $enrollment['student_name'] : 'Student ID: ' . ($enrollment['student_id'] ?? 'N/A');
+                                
+                                // Get course info - handle NULL from LEFT JOIN
+                                $courseCode = !empty($enrollment['course_code']) ? $enrollment['course_code'] : 'Course ID: ' . ($enrollment['course_id'] ?? 'N/A');
+                                $courseName = $enrollment['course_name'] ?? '';
                                 ?>
                                 <div style="display: flex; align-items: center; gap: 1rem; padding: 1.5rem; border-bottom: 1px solid var(--border-color); <?php echo $isPending ? 'background-color: rgba(245, 158, 11, 0.05);' : ''; ?>">
                                     <div style="flex: 1;">
                                         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-                                            <h4 style="margin: 0; color: var(--text-primary);"><?php echo htmlspecialchars($enrollment['student_name'] ?? 'Unknown Student'); ?></h4>
+                                            <h4 style="margin: 0; color: var(--text-primary);"><?php echo htmlspecialchars($studentName); ?></h4>
                                             <span class="badge" style="background-color: <?php echo $statusColor; ?>; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
                                                 <?php echo $statusText; ?>
                                             </span>
@@ -551,9 +699,9 @@ try {
                                         <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
                                             <div>
                                                 <span style="color: var(--text-secondary); font-size: 0.9rem;">Course:</span>
-                                                <strong style="color: var(--text-primary); margin-left: 0.5rem;"><?php echo htmlspecialchars($enrollment['course_code'] ?? 'N/A'); ?></strong>
-                                                <?php if (!empty($enrollment['course_name'])): ?>
-                                                    <span style="color: var(--text-secondary); font-size: 0.9rem;"> - <?php echo htmlspecialchars($enrollment['course_name']); ?></span>
+                                                <strong style="color: var(--text-primary); margin-left: 0.5rem;"><?php echo htmlspecialchars($courseCode); ?></strong>
+                                                <?php if (!empty($courseName)): ?>
+                                                    <span style="color: var(--text-secondary); font-size: 0.9rem;"> - <?php echo htmlspecialchars($courseName); ?></span>
                                                 <?php endif; ?>
                                             </div>
                                             <?php if (!empty($enrollment['section_code'])): ?>

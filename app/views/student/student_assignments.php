@@ -11,6 +11,134 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+<?php
+// Load assignments from database
+session_start();
+require_once __DIR__ . '/../../core/Database.php';
+$db = Database::getInstance()->getConnection();
+
+// Get current student ID from session
+$studentId = null;
+if (isset($_SESSION['user']['id'])) {
+    try {
+        $userStmt = $db->prepare("SELECT id FROM students WHERE user_id = ?");
+        $userStmt->execute([$_SESSION['user']['id']]);
+        $student = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if ($student) {
+            $studentId = $student['id'];
+        }
+    } catch (Exception $e) {
+        error_log("Error getting student_id: " . $e->getMessage());
+    }
+}
+
+// Get enrolled course IDs for this student
+$enrolledCourseIds = [];
+if ($studentId) {
+    try {
+        $courseStmt = $db->prepare("SELECT course_id FROM student_courses WHERE student_id = ? AND (status = 'taking' OR status = 'approved' OR status IS NULL)");
+        $courseStmt->execute([$studentId]);
+        $enrolledCourses = $courseStmt->fetchAll(PDO::FETCH_COLUMN);
+        $enrolledCourseIds = array_filter($enrolledCourses);
+    } catch (Exception $e) {
+        error_log("Error getting enrolled courses: " . $e->getMessage());
+    }
+}
+
+// Fetch assignments from calendar_events table
+$assignments = [];
+$stats = [
+    'pending' => 0,
+    'submitted' => 0,
+    'graded' => 0,
+    'overdue' => 0
+];
+
+if (!empty($enrolledCourseIds)) {
+    try {
+        $placeholders = implode(',', array_fill(0, count($enrolledCourseIds), '?'));
+        $sql = "
+            SELECT ce.*, c.course_code, c.course_name
+            FROM calendar_events ce
+            LEFT JOIN courses c ON ce.course_id = c.id
+            WHERE ce.event_type = 'assignment'
+            AND ce.status = 'active'
+            AND ce.course_id IN ($placeholders)
+            ORDER BY ce.end_date ASC, ce.start_date ASC
+        ";
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($enrolledCourseIds);
+        $allAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $today = date('Y-m-d');
+        
+        foreach ($allAssignments as $assignment) {
+            // Determine assignment status based on due date
+            $dueDate = $assignment['end_date'] ?? $assignment['start_date'] ?? null;
+            $status = 'pending'; // default
+            $dueDateCategory = 'month'; // default
+            
+            if ($dueDate) {
+                $dueTimestamp = strtotime($dueDate);
+                $todayTimestamp = strtotime($today);
+                $daysUntilDue = floor(($dueTimestamp - $todayTimestamp) / (60 * 60 * 24));
+                
+                // Determine status
+                if ($daysUntilDue < 0) {
+                    $status = 'overdue';
+                } else {
+                    $status = 'pending'; // For now, we'll assume pending if not submitted/graded
+                }
+                
+                // Determine due date category for filtering
+                if ($daysUntilDue == 0) {
+                    $dueDateCategory = 'today';
+                } elseif ($daysUntilDue > 0 && $daysUntilDue <= 7) {
+                    $dueDateCategory = 'week';
+                } elseif ($daysUntilDue > 7 && $daysUntilDue <= 30) {
+                    $dueDateCategory = 'month';
+                }
+            }
+            
+            $assignment['computed_status'] = $status;
+            $assignment['due_date_category'] = $dueDateCategory;
+            $assignments[] = $assignment;
+            
+            // Update statistics
+            if ($status === 'pending') {
+                $stats['pending']++;
+            } elseif ($status === 'submitted') {
+                $stats['submitted']++;
+            } elseif ($status === 'graded') {
+                $stats['graded']++;
+            } elseif ($status === 'overdue') {
+                $stats['overdue']++;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error loading assignments: " . $e->getMessage());
+    }
+}
+
+// Get enrolled courses for filter dropdown
+$enrolledCoursesList = [];
+if ($studentId) {
+    try {
+        $coursesStmt = $db->prepare("
+            SELECT DISTINCT c.id, c.course_code, c.course_name
+            FROM courses c
+            INNER JOIN student_courses sc ON c.id = sc.course_id
+            WHERE sc.student_id = ? AND (sc.status = 'taking' OR sc.status = 'approved' OR sc.status IS NULL)
+            ORDER BY c.course_code
+        ");
+        $coursesStmt->execute([$studentId]);
+        $enrolledCoursesList = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error getting enrolled courses list: " . $e->getMessage());
+    }
+}
+?>
     <!-- Sidebar Toggle Button -->
     <button class="sidebar-toggle" title="Toggle Sidebar">
         <i class="fas fa-bars"></i>
@@ -92,10 +220,11 @@
                         <div>
                             <select class="form-input" id="courseFilter" onchange="filterAssignments()">
                                 <option value="">All Courses</option>
-                                <option value="calculus">Calculus I</option>
-                                <option value="cs101">Computer Science 101</option>
-                                <option value="physics">Physics I</option>
-                                <option value="english">English Literature</option>
+                                <?php foreach ($enrolledCoursesList as $course): ?>
+                                    <option value="<?php echo htmlspecialchars($course['course_code']); ?>">
+                                        <?php echo htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div>
@@ -126,28 +255,28 @@
                         <div style="font-size: 2.5rem; color: var(--warning-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-clock"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">3</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $stats['pending']; ?></div>
                         <div style="color: var(--text-secondary);">Pending</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-paper-plane"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">8</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $stats['submitted']; ?></div>
                         <div style="color: var(--text-secondary);">Submitted</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-check-circle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">5</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $stats['graded']; ?></div>
                         <div style="color: var(--text-secondary);">Graded</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--error-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">1</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $stats['overdue']; ?></div>
                         <div style="color: var(--text-secondary);">Overdue</div>
                     </div>
                 </div>
@@ -185,146 +314,103 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Pending Assignment -->
-                                <tr data-course="calculus" data-status="pending" data-due="today">
-                                    <td>
-                                        <div>
-                                            <strong>Math Homework #5</strong>
-                                            <br><small style="color: var(--text-secondary);">Solve calculus problems from chapters 3-4</small>
-                                        </div>
-                                    </td>
-                                    <td>Calculus I</td>
-                                    <td>
-                                        <div style="color: var(--warning-color); font-weight: 500;">Sep 15, 2024</div>
-                                        <small style="color: var(--text-secondary);">Due Tomorrow</small>
-                                    </td>
-                                    <td><span style="background-color: var(--warning-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Pending</span></td>
-                                    <td>-</td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment('math-hw5')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="submitAssignment('math-hw5')">
-                                                <i class="fas fa-upload"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Submitted Assignment -->
-                                <tr data-course="cs101" data-status="submitted" data-due="week">
-                                    <td>
-                                        <div>
-                                            <strong>Programming Project</strong>
-                                            <br><small style="color: var(--text-secondary);">Create a Python calculator application</small>
-                                        </div>
-                                    </td>
-                                    <td>CS 101</td>
-                                    <td>
-                                        <div style="color: var(--primary-color); font-weight: 500;">Sep 18, 2024</div>
-                                        <small style="color: var(--text-secondary);">Due in 3 days</small>
-                                    </td>
-                                    <td><span style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Submitted</span></td>
-                                    <td>-</td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment('prog-project')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewSubmission('prog-project')">
-                                                <i class="fas fa-file-alt"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Graded Assignment -->
-                                <tr data-course="physics" data-status="graded" data-due="month">
-                                    <td>
-                                        <div>
-                                            <strong>Physics Lab Report</strong>
-                                            <br><small style="color: var(--text-secondary);">Analysis of pendulum motion experiment</small>
-                                        </div>
-                                    </td>
-                                    <td>Physics I</td>
-                                    <td>
-                                        <div style="color: var(--text-secondary); font-weight: 500;">Sep 10, 2024</div>
-                                        <small style="color: var(--text-secondary);">Completed</small>
-                                    </td>
-                                    <td><span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Graded</span></td>
-                                    <td>
-                                        <div style="color: var(--success-color); font-weight: 700;">A-</div>
-                                        <small style="color: var(--text-secondary);">92/100</small>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment('physics-lab')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewFeedback('physics-lab')">
-                                                <i class="fas fa-comments"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Overdue Assignment -->
-                                <tr data-course="english" data-status="overdue" data-due="today">
-                                    <td>
-                                        <div>
-                                            <strong>Essay Assignment</strong>
-                                            <br><small style="color: var(--text-secondary);">Write a 1000-word analysis of Shakespeare's Hamlet</small>
-                                        </div>
-                                    </td>
-                                    <td>English Literature</td>
-                                    <td>
-                                        <div style="color: var(--error-color); font-weight: 500;">Sep 12, 2024</div>
-                                        <small style="color: var(--error-color);">Overdue</small>
-                                    </td>
-                                    <td><span style="background-color: var(--error-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Overdue</span></td>
-                                    <td>-</td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment('essay-hamlet')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="submitAssignment('essay-hamlet')">
-                                                <i class="fas fa-upload"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- More assignments... -->
-                                <tr data-course="calculus" data-status="graded" data-due="month">
-                                    <td>
-                                        <div>
-                                            <strong>Math Quiz #3</strong>
-                                            <br><small style="color: var(--text-secondary);">Online quiz on derivatives</small>
-                                        </div>
-                                    </td>
-                                    <td>Calculus I</td>
-                                    <td>
-                                        <div style="color: var(--text-secondary); font-weight: 500;">Sep 8, 2024</div>
-                                        <small style="color: var(--text-secondary);">Completed</small>
-                                    </td>
-                                    <td><span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Graded</span></td>
-                                    <td>
-                                        <div style="color: var(--success-color); font-weight: 700;">A</div>
-                                        <small style="color: var(--text-secondary);">98/100</small>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 0.25rem;">
-                                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment('math-quiz3')">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewFeedback('math-quiz3')">
-                                                <i class="fas fa-comments"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <?php if (empty($assignments)): ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                            <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                                            <p>No assignments found. Assignments will appear here once they are created for your enrolled courses.</p>
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php 
+                                    foreach ($assignments as $assignment): 
+                                        $status = $assignment['computed_status'];
+                                        $dueDate = $assignment['end_date'] ?? $assignment['start_date'];
+                                        $courseCode = $assignment['course_code'] ?? 'N/A';
+                                        $courseName = $assignment['course_name'] ?? '';
+                                        
+                                        // Format due date
+                                        $dueDateFormatted = $dueDate ? date('M j, Y', strtotime($dueDate)) : 'TBD';
+                                        
+                                        // Calculate days until due
+                                        $daysUntilDue = null;
+                                        if ($dueDate) {
+                                            $daysUntilDue = floor((strtotime($dueDate) - strtotime(date('Y-m-d'))) / (60 * 60 * 24));
+                                        }
+                                        
+                                        // Determine status colors and text
+                                        $statusColors = [
+                                            'pending' => 'var(--warning-color)',
+                                            'submitted' => 'var(--primary-color)',
+                                            'graded' => 'var(--success-color)',
+                                            'overdue' => 'var(--error-color)'
+                                        ];
+                                        $statusText = ucfirst($status);
+                                        $statusColor = $statusColors[$status] ?? 'var(--secondary-color)';
+                                        
+                                        // Determine due date text
+                                        $dueDateText = '';
+                                        $dueDateColor = 'var(--text-secondary)';
+                                        if ($daysUntilDue !== null) {
+                                            if ($daysUntilDue < 0) {
+                                                $dueDateText = 'Overdue';
+                                                $dueDateColor = 'var(--error-color)';
+                                            } elseif ($daysUntilDue == 0) {
+                                                $dueDateText = 'Due Today';
+                                                $dueDateColor = 'var(--warning-color)';
+                                            } elseif ($daysUntilDue == 1) {
+                                                $dueDateText = 'Due Tomorrow';
+                                                $dueDateColor = 'var(--warning-color)';
+                                            } elseif ($daysUntilDue <= 7) {
+                                                $dueDateText = "Due in {$daysUntilDue} days";
+                                                $dueDateColor = 'var(--primary-color)';
+                                            } else {
+                                                $dueDateText = "Due in {$daysUntilDue} days";
+                                                $dueDateColor = 'var(--text-secondary)';
+                                            }
+                                        }
+                                    ?>
+                                    <tr data-course="<?php echo htmlspecialchars($courseCode); ?>" data-status="<?php echo htmlspecialchars($status); ?>" data-due="<?php echo htmlspecialchars($assignment['due_date_category']); ?>">
+                                        <td>
+                                            <div>
+                                                <strong><?php echo htmlspecialchars($assignment['title']); ?></strong>
+                                                <?php if (!empty($assignment['description'])): ?>
+                                                    <br><small style="color: var(--text-secondary);"><?php echo htmlspecialchars(substr($assignment['description'], 0, 80)) . (strlen($assignment['description']) > 80 ? '...' : ''); ?></small>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($courseCode . ($courseName ? ' - ' . $courseName : '')); ?></td>
+                                        <td>
+                                            <div style="color: <?php echo $dueDateColor; ?>; font-weight: 500;"><?php echo htmlspecialchars($dueDateFormatted); ?></div>
+                                            <?php if ($dueDateText): ?>
+                                                <small style="color: <?php echo $dueDateColor; ?>;"><?php echo htmlspecialchars($dueDateText); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><span style="background-color: <?php echo $statusColor; ?>; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;"><?php echo htmlspecialchars($statusText); ?></span></td>
+                                        <td>-</td>
+                                        <td>
+                                            <div style="display: flex; gap: 0.25rem;">
+                                                <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAssignment(<?php echo $assignment['id']; ?>)">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <?php if ($status === 'pending' || $status === 'overdue'): ?>
+                                                    <button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="submitAssignment(<?php echo $assignment['id']; ?>)">
+                                                        <i class="fas fa-upload"></i>
+                                                    </button>
+                                                <?php elseif ($status === 'submitted'): ?>
+                                                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewSubmission(<?php echo $assignment['id']; ?>)">
+                                                        <i class="fas fa-file-alt"></i>
+                                                    </button>
+                                                <?php elseif ($status === 'graded'): ?>
+                                                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewFeedback(<?php echo $assignment['id']; ?>)">
+                                                        <i class="fas fa-comments"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -332,125 +418,104 @@
                     <!-- Cards View -->
                     <div id="cardsView" class="assignment-cards-view" style="display: none;">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-                            <!-- Assignment Card 1 -->
-                            <div class="assignment-card" data-course="calculus" data-status="pending" data-due="today" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <div>
-                                        <h3 style="margin: 0; color: var(--text-primary);">Math Homework #5</h3>
-                                        <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">Calculus I</p>
-                                    </div>
-                                    <span style="background-color: var(--warning-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Pending</span>
+                            <?php if (empty($assignments)): ?>
+                                <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                    <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                                    <p>No assignments found. Assignments will appear here once they are created for your enrolled courses.</p>
                                 </div>
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Solve calculus problems from chapters 3-4</p>
-                                <div style="margin-bottom: 1rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Due Date</span>
-                                        <span style="font-size: 0.9rem; color: var(--warning-color); font-weight: 500;">Sep 15, 2024</span>
+                            <?php else: ?>
+                                <?php 
+                                foreach ($assignments as $assignment): 
+                                    $status = $assignment['computed_status'];
+                                    $dueDate = $assignment['end_date'] ?? $assignment['start_date'];
+                                    $courseCode = $assignment['course_code'] ?? 'N/A';
+                                    $courseName = $assignment['course_name'] ?? '';
+                                    
+                                    // Format due date
+                                    $dueDateFormatted = $dueDate ? date('M j, Y', strtotime($dueDate)) : 'TBD';
+                                    
+                                    // Calculate days until due
+                                    $daysUntilDue = null;
+                                    if ($dueDate) {
+                                        $daysUntilDue = floor((strtotime($dueDate) - strtotime(date('Y-m-d'))) / (60 * 60 * 24));
+                                    }
+                                    
+                                    // Determine status colors and text
+                                    $statusColors = [
+                                        'pending' => 'var(--warning-color)',
+                                        'submitted' => 'var(--primary-color)',
+                                        'graded' => 'var(--success-color)',
+                                        'overdue' => 'var(--error-color)'
+                                    ];
+                                    $statusText = ucfirst($status);
+                                    $statusColor = $statusColors[$status] ?? 'var(--secondary-color)';
+                                    
+                                    // Determine due date text
+                                    $dueDateText = '';
+                                    $dueDateColor = 'var(--text-secondary)';
+                                    if ($daysUntilDue !== null) {
+                                        if ($daysUntilDue < 0) {
+                                            $dueDateText = 'Overdue';
+                                            $dueDateColor = 'var(--error-color)';
+                                        } elseif ($daysUntilDue == 0) {
+                                            $dueDateText = 'Due Today';
+                                            $dueDateColor = 'var(--warning-color)';
+                                        } elseif ($daysUntilDue == 1) {
+                                            $dueDateText = 'Due Tomorrow';
+                                            $dueDateColor = 'var(--warning-color)';
+                                        } elseif ($daysUntilDue <= 7) {
+                                            $dueDateText = "Due in {$daysUntilDue} days";
+                                            $dueDateColor = 'var(--primary-color)';
+                                        } else {
+                                            $dueDateText = "Due in {$daysUntilDue} days";
+                                            $dueDateColor = 'var(--text-secondary)';
+                                        }
+                                    }
+                                ?>
+                                <div class="assignment-card" data-course="<?php echo htmlspecialchars($courseCode); ?>" data-status="<?php echo htmlspecialchars($status); ?>" data-due="<?php echo htmlspecialchars($assignment['due_date_category']); ?>" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                        <div>
+                                            <h3 style="margin: 0; color: var(--text-primary);"><?php echo htmlspecialchars($assignment['title']); ?></h3>
+                                            <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;"><?php echo htmlspecialchars($courseCode . ($courseName ? ' - ' . $courseName : '')); ?></p>
+                                        </div>
+                                        <span style="background-color: <?php echo $statusColor; ?>; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;"><?php echo htmlspecialchars($statusText); ?></span>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Status</span>
-                                        <span style="font-size: 0.9rem; color: var(--warning-color);">Due Tomorrow</span>
+                                    <?php if (!empty($assignment['description'])): ?>
+                                        <p style="color: var(--text-secondary); margin-bottom: 1rem;"><?php echo htmlspecialchars(substr($assignment['description'], 0, 100)) . (strlen($assignment['description']) > 100 ? '...' : ''); ?></p>
+                                    <?php endif; ?>
+                                    <div style="margin-bottom: 1rem;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                            <span style="font-size: 0.9rem; color: var(--text-secondary);">Due Date</span>
+                                            <span style="font-size: 0.9rem; color: <?php echo $dueDateColor; ?>; font-weight: 500;"><?php echo htmlspecialchars($dueDateFormatted); ?></span>
+                                        </div>
+                                        <?php if ($dueDateText): ?>
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="font-size: 0.9rem; color: var(--text-secondary);">Status</span>
+                                                <span style="font-size: 0.9rem; color: <?php echo $dueDateColor; ?>;"><?php echo htmlspecialchars($dueDateText); ?></span>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
-                                </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-primary" style="flex: 1;" onclick="viewAssignment('math-hw5')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn btn-success" onclick="submitAssignment('math-hw5')">
-                                        <i class="fas fa-upload"></i> Submit
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Assignment Card 2 -->
-                            <div class="assignment-card" data-course="cs101" data-status="submitted" data-due="week" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <div>
-                                        <h3 style="margin: 0; color: var(--text-primary);">Programming Project</h3>
-                                        <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">CS 101</p>
-                                    </div>
-                                    <span style="background-color: var(--primary-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Submitted</span>
-                                </div>
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Create a Python calculator application</p>
-                                <div style="margin-bottom: 1rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Due Date</span>
-                                        <span style="font-size: 0.9rem; color: var(--primary-color); font-weight: 500;">Sep 18, 2024</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Status</span>
-                                        <span style="font-size: 0.9rem; color: var(--primary-color);">Due in 3 days</span>
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-primary" style="flex: 1;" onclick="viewAssignment('prog-project')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn btn-outline" onclick="viewSubmission('prog-project')">
-                                        <i class="fas fa-file-alt"></i> Submission
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Assignment Card 3 -->
-                            <div class="assignment-card" data-course="physics" data-status="graded" data-due="month" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <div>
-                                        <h3 style="margin: 0; color: var(--text-primary);">Physics Lab Report</h3>
-                                        <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">Physics I</p>
-                                    </div>
-                                    <span style="background-color: var(--success-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Graded</span>
-                                </div>
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Analysis of pendulum motion experiment</p>
-                                <div style="margin-bottom: 1rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Grade</span>
-                                        <span style="font-size: 1.2rem; color: var(--success-color); font-weight: 700;">A- (92/100)</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Due Date</span>
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Sep 10, 2024</span>
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-primary" style="flex: 1;" onclick="viewAssignment('physics-lab')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn btn-outline" onclick="viewFeedback('physics-lab')">
-                                        <i class="fas fa-comments"></i> Feedback
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Assignment Card 4 -->
-                            <div class="assignment-card" data-course="english" data-status="overdue" data-due="today" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <div>
-                                        <h3 style="margin: 0; color: var(--text-primary);">Essay Assignment</h3>
-                                        <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">English Literature</p>
-                                    </div>
-                                    <span style="background-color: var(--error-color); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">Overdue</span>
-                                </div>
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Write a 1000-word analysis of Shakespeare's Hamlet</p>
-                                <div style="margin-bottom: 1rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Due Date</span>
-                                        <span style="font-size: 0.9rem; color: var(--error-color); font-weight: 500;">Sep 12, 2024</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Status</span>
-                                        <span style="font-size: 0.9rem; color: var(--error-color);">Overdue</span>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-primary" style="flex: 1;" onclick="viewAssignment(<?php echo $assignment['id']; ?>)">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <?php if ($status === 'pending' || $status === 'overdue'): ?>
+                                            <button class="btn btn-success" onclick="submitAssignment(<?php echo $assignment['id']; ?>)">
+                                                <i class="fas fa-upload"></i> Submit
+                                            </button>
+                                        <?php elseif ($status === 'submitted'): ?>
+                                            <button class="btn btn-outline" onclick="viewSubmission(<?php echo $assignment['id']; ?>)">
+                                                <i class="fas fa-file-alt"></i> Submission
+                                            </button>
+                                        <?php elseif ($status === 'graded'): ?>
+                                            <button class="btn btn-outline" onclick="viewFeedback(<?php echo $assignment['id']; ?>)">
+                                                <i class="fas fa-comments"></i> Feedback
+                                            </button>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-primary" style="flex: 1;" onclick="viewAssignment('essay-hamlet')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    <button class="btn btn-warning" onclick="submitAssignment('essay-hamlet')">
-                                        <i class="fas fa-upload"></i> Submit
-                                    </button>
-                                </div>
-                            </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -505,17 +570,17 @@
             </div>
             <div class="footer-section">
                 <h3>Quick Links</h3>
-                <a href="../index.html">Home</a>
-                <a href="../app/about.html">About Us</a>
-                <a href="../app/contact.html">Contact</a>
-                <a href="../app/help_center.html">Help Center</a>
+                <a href="../home.php">Home</a>
+                <a href="../about.php">About Us</a>
+                <a href="../contact.php">Contact</a>
+                <a href="../help_center.php">Help Center</a>
             </div>
             <div class="footer-section">
                 <h3>User Access</h3>
-                <a href="../auth/auth_login.html">Student Login</a>
-                <a href="../auth/auth_login.html">Doctor Login</a>
-                <a href="../auth/auth_login.html">Admin Login</a>
-                <a href="../auth/auth_signup.html">Register</a>
+                <a href="../auth/auth_login.php">Student Login</a>
+                <a href="../auth/auth_login.php">Doctor Login</a>
+                <a href="../auth/auth_login.php">Admin Login</a>
+                <a href="../auth/auth_sign.php">Register</a>
             </div>
             <div class="footer-section">
                 <h3>Contact Info</h3>

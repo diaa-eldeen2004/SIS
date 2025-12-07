@@ -1357,7 +1357,6 @@ if ($studentId) {
         <?php endif; ?>
         
         let currentView = 'grid';
-        let currentView = 'grid';
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
