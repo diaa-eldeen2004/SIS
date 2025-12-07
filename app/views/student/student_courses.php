@@ -6,11 +6,152 @@
     <title>My Courses - Student Portal</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+<?php
+// Handle enrollment requests and load course data
+session_start();
+require_once __DIR__ . '/../../core/Database.php';
+require_once __DIR__ . '/../../core/Logger.php';
+$db = Database::getInstance()->getConnection();
+
+// Initialize message variables
+$message = isset($_GET['message']) ? $_GET['message'] : '';
+$messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
+
+// Get current student ID from session
+$studentId = null;
+if (isset($_SESSION['user']['id'])) {
+    // Look up student_id from students table using user_id
+    try {
+        $userStmt = $db->prepare("SELECT id FROM students WHERE user_id = ?");
+        $userStmt->execute([$_SESSION['user']['id']]);
+        $student = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if ($student) {
+            $studentId = $student['id'];
+        }
+    } catch (Exception $e) {
+        // If students table doesn't exist or error, studentId remains null
+        error_log("Error getting student_id: " . $e->getMessage());
+    }
+}
+
+// Handle enrollment request submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'request-enrollment') {
+    if (!$studentId) {
+        header('Location: student_courses.php?message=' . urlencode('Please log in to request enrollment') . '&type=error');
+        exit;
+    }
+    
+    if (isset($_POST['course_id'])) {
+        try {
+            $courseId = (int)$_POST['course_id'];
+            
+            // Check if already enrolled or has pending request
+            $checkStmt = $db->prepare("SELECT id, status FROM student_courses WHERE student_id = ? AND course_id = ?");
+            $checkStmt->execute([$studentId, $courseId]);
+            $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($existing) {
+                if ($existing['status'] === 'pending') {
+                    header('Location: student_courses.php?message=' . urlencode('You already have a pending enrollment request for this course') . '&type=warning');
+                } else {
+                    header('Location: student_courses.php?message=' . urlencode('You are already enrolled in this course') . '&type=warning');
+                }
+                exit;
+            }
+            
+            // Get course info for logging
+            $courseStmt = $db->prepare("SELECT course_code, course_name FROM courses WHERE id = ?");
+            $courseStmt->execute([$courseId]);
+            $course = $courseStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Check if status column exists
+            $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
+            $hasStatusColumn = !empty($columns);
+            
+            // Insert enrollment request with pending status
+            if ($hasStatusColumn) {
+                $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, status, enrolled_at) VALUES (?, ?, 'pending', NOW())");
+            } else {
+                // Try enrolled_at, fallback to created_at
+                try {
+                    $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, enrolled_at) VALUES (?, ?, NOW())");
+                } catch (Exception $e2) {
+                    $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, created_at) VALUES (?, ?, NOW())");
+                }
+            }
+            $stmt->execute([$studentId, $courseId]);
+            
+            // Log the enrollment request
+            Logger::info("Student requested enrollment in course", [
+                'student_id' => $studentId,
+                'course_id' => $courseId,
+                'course_code' => $course['course_code'] ?? 'N/A',
+                'course_name' => $course['course_name'] ?? 'N/A'
+            ], 'enrollment');
+            
+            header('Location: student_courses.php?message=' . urlencode('Enrollment request submitted successfully. Waiting for IT approval.') . '&type=success');
+            exit;
+        } catch (Exception $e) {
+            Logger::error("Error submitting enrollment request", ['error' => $e->getMessage()], 'enrollment');
+            header('Location: student_courses.php?message=' . urlencode('Error submitting enrollment request: ' . $e->getMessage()) . '&type=error');
+            exit;
+        }
+    }
+}
+
+// Load enrolled courses
+$enrolledCourses = [];
+if ($studentId) {
+    try {
+        $stmt = $db->prepare("
+            SELECT sc.*, c.course_code, c.course_name, c.description,
+                   GROUP_CONCAT(CONCAT(d.first_name, ' ', d.last_name) SEPARATOR ', ') as instructors
+            FROM student_courses sc
+            LEFT JOIN courses c ON sc.course_id = c.id
+            LEFT JOIN doctor_courses dc ON c.id = dc.course_id
+            LEFT JOIN doctors d ON dc.doctor_id = d.id
+            WHERE sc.student_id = ?
+            GROUP BY sc.id
+            ORDER BY sc.enrolled_at DESC
+        ");
+        $stmt->execute([$studentId]);
+        $enrolledCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        Logger::error("Error loading enrolled courses", ['error' => $e->getMessage()], 'student');
+    }
+}
+
+// Load available courses (courses not yet enrolled)
+$availableCourses = [];
+if ($studentId) {
+    try {
+        $enrolledCourseIds = array_map(function($c) { return $c['course_id']; }, $enrolledCourses);
+        $placeholders = $enrolledCourseIds ? implode(',', array_fill(0, count($enrolledCourseIds), '?')) : '0';
+        
+        $sql = "SELECT c.* FROM courses c";
+        if ($enrolledCourseIds) {
+            $sql .= " WHERE c.id NOT IN ($placeholders)";
+        }
+        $sql .= " ORDER BY c.course_code";
+        
+        $stmt = $db->prepare($sql);
+        if ($enrolledCourseIds) {
+            $stmt->execute($enrolledCourseIds);
+        } else {
+            $stmt->execute();
+        }
+        $availableCourses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        Logger::error("Error loading available courses", ['error' => $e->getMessage()], 'student');
+    }
+}
+?>
     <!-- Sidebar Toggle Button -->
     <button class="sidebar-toggle" title="Toggle Sidebar">
         <i class="fas fa-bars"></i>
@@ -571,6 +712,49 @@
         </div>
     </div>
 
+    <!-- Available Courses Modal -->
+    <div id="availableCoursesModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 80vh;">
+            <div class="modal-header">
+                <h2>Available Courses</h2>
+                <button class="modal-close" onclick="closeAvailableCoursesModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="overflow-y: auto; max-height: calc(80vh - 120px);">
+                <?php if (empty($availableCourses)): ?>
+                    <div style="padding: 2rem; text-align: center;">
+                        <i class="fas fa-book" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+                        <p style="color: var(--text-secondary);">No available courses found. You may already be enrolled in all courses.</p>
+                    </div>
+                <?php else: ?>
+                    <div style="display: grid; gap: 1rem;">
+                        <?php foreach ($availableCourses as $course): ?>
+                            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; background-color: var(--surface-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                                    <div>
+                                        <h3 style="margin: 0; color: var(--text-primary);"><?php echo htmlspecialchars($course['course_name'] ?? 'N/A'); ?></h3>
+                                        <p style="margin: 0.25rem 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                            <strong><?php echo htmlspecialchars($course['course_code'] ?? 'N/A'); ?></strong>
+                                        </p>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="requestEnrollment(<?php echo $course['id']; ?>)">
+                                        <i class="fas fa-user-plus"></i> Request Enrollment
+                                    </button>
+                                </div>
+                                <?php if (!empty($course['description'])): ?>
+                                    <p style="color: var(--text-secondary); margin: 0.5rem 0; font-size: 0.9rem;">
+                                        <?php echo htmlspecialchars($course['description']); ?>
+                                    </p>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="footer">
         <div class="footer-content">
@@ -605,8 +789,46 @@
     </footer>
 
     <!-- Scripts -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script src="../../js/main.js"></script>
     <script>
+        // Show toast notification on page load if there's a message
+        <?php if (!empty($message)): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageType = '<?php echo htmlspecialchars($messageType, ENT_QUOTES); ?>';
+            const message = <?php echo json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+            
+            let backgroundColor = '#2563eb'; // default blue
+            if (messageType === 'success') {
+                backgroundColor = '#10b981'; // green
+            } else if (messageType === 'error') {
+                backgroundColor = '#ef4444'; // red
+            } else if (messageType === 'warning') {
+                backgroundColor = '#f59e0b'; // orange
+            }
+            
+            Toastify({
+                text: message,
+                duration: 5000,
+                gravity: "top",
+                position: "right",
+                style: {
+                    background: backgroundColor,
+                },
+                close: true,
+            }).showToast();
+            
+            // Clean URL by removing message parameters
+            if (window.location.search.includes('message=')) {
+                const url = new URL(window.location);
+                url.searchParams.delete('message');
+                url.searchParams.delete('type');
+                window.history.replaceState({}, '', url);
+            }
+        });
+        <?php endif; ?>
+        
+        let currentView = 'grid';
         let currentView = 'grid';
 
         // Initialize page
@@ -735,11 +957,41 @@
             }, 1000);
         }
 
-        // Show available courses
+        // Show available courses modal
         function showAvailableCourses() {
-            showNotification('Opening course catalog...', 'info');
-            // In a real implementation, this would open a modal or navigate to course catalog
+            document.getElementById('availableCoursesModal').classList.add('active');
         }
+        
+        function closeAvailableCoursesModal() {
+            document.getElementById('availableCoursesModal').classList.remove('active');
+        }
+        
+        function requestEnrollment(courseId) {
+            if (confirm('Request enrollment in this course? Your request will be sent to IT for approval.')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'student_courses.php';
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'request-enrollment';
+                const courseInput = document.createElement('input');
+                courseInput.type = 'hidden';
+                courseInput.name = 'course_id';
+                courseInput.value = courseId;
+                form.appendChild(actionInput);
+                form.appendChild(courseInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Close modal on overlay click
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                closeAvailableCoursesModal();
+            }
+        });
     </script>
 </body>
 </html>

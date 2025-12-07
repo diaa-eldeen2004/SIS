@@ -22,12 +22,26 @@ $message = isset($_GET['message']) ? $_GET['message'] : '';
 $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
 
 // Handle form submissions
+require_once __DIR__ . '/../../core/Logger.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'approve' && isset($_POST['enrollment_id'])) {
         try {
             $enrollmentId = (int)$_POST['enrollment_id'];
+            
+            // Get enrollment info for logging
+            $infoStmt = $db->prepare("
+                SELECT sc.*, CONCAT(st.first_name, ' ', st.last_name) as student_name, 
+                       c.course_code, c.course_name
+                FROM student_courses sc
+                LEFT JOIN students st ON sc.student_id = st.id
+                LEFT JOIN courses c ON sc.course_id = c.id
+                WHERE sc.id = ?
+            ");
+            $infoStmt->execute([$enrollmentId]);
+            $enrollmentInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
             
             // Check if status column supports 'taking' or 'approved'
             $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
@@ -51,6 +65,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$enrollmentId]);
             }
             
+            // Log the approval
+            Logger::success("Enrollment request approved", [
+                'enrollment_id' => $enrollmentId,
+                'student_id' => $enrollmentInfo['student_id'] ?? null,
+                'student_name' => $enrollmentInfo['student_name'] ?? 'N/A',
+                'course_id' => $enrollmentInfo['course_id'] ?? null,
+                'course_code' => $enrollmentInfo['course_code'] ?? 'N/A',
+                'course_name' => $enrollmentInfo['course_name'] ?? 'N/A'
+            ], 'enrollment');
+            
             header('Location: it_enrollments.php?message=' . urlencode('Enrollment approved successfully') . '&type=success');
             exit;
         } catch (Exception $e) {
@@ -61,6 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $enrollmentId = (int)$_POST['enrollment_id'];
             $reason = $_POST['reason'] ?? null;
+            
+            // Get enrollment info for logging
+            $infoStmt = $db->prepare("
+                SELECT sc.*, CONCAT(st.first_name, ' ', st.last_name) as student_name, 
+                       c.course_code, c.course_name
+                FROM student_courses sc
+                LEFT JOIN students st ON sc.student_id = st.id
+                LEFT JOIN courses c ON sc.course_id = c.id
+                WHERE sc.id = ?
+            ");
+            $infoStmt->execute([$enrollmentId]);
+            $enrollmentInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
             
             // Check if status column supports 'rejected'
             $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
@@ -83,6 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("DELETE FROM student_courses WHERE id = ?");
                 $stmt->execute([$enrollmentId]);
             }
+            
+            // Log the rejection
+            Logger::warning("Enrollment request rejected", [
+                'enrollment_id' => $enrollmentId,
+                'student_id' => $enrollmentInfo['student_id'] ?? null,
+                'student_name' => $enrollmentInfo['student_name'] ?? 'N/A',
+                'course_id' => $enrollmentInfo['course_id'] ?? null,
+                'course_code' => $enrollmentInfo['course_code'] ?? 'N/A',
+                'course_name' => $enrollmentInfo['course_name'] ?? 'N/A',
+                'reason' => $reason
+            ], 'enrollment');
             
             header('Location: it_enrollments.php?message=' . urlencode('Enrollment rejected' . ($reason ? ': ' . $reason : '')) . '&type=success');
             exit;
@@ -314,9 +361,6 @@ try {
             </a>
             <a href="it_enrollments.php" class="nav-item active">
                 <i class="fas fa-user-check"></i> Enrollment Requests
-            </a>
-            <a href="it_backups.php" class="nav-item">
-                <i class="fas fa-database"></i> Backups & Restores
             </a>
             <a href="it_logs.php" class="nav-item">
                 <i class="fas fa-file-alt"></i> System Logs

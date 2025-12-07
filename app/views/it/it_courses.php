@@ -15,6 +15,7 @@
 <?php
 // Load courses data server-side
 require_once __DIR__ . '/../../core/Database.php';
+require_once __DIR__ . '/../../core/Logger.php';
 $db = Database::getInstance()->getConnection();
 
 // Initialize message variables (will be set from URL params after form submissions)
@@ -48,6 +49,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $db->prepare("INSERT INTO doctor_courses (doctor_id, course_id) VALUES (?, ?)");
                     $stmt->execute([$_POST['doctor_id'], $_POST['course_id']]);
                 }
+                
+                // Get info for logging
+                $infoStmt = $db->prepare("
+                    SELECT c.course_code, c.course_name, CONCAT(d.first_name, ' ', d.last_name) as doctor_name
+                    FROM courses c, doctors d
+                    WHERE c.id = ? AND d.id = ?
+                ");
+                $infoStmt->execute([$_POST['course_id'], $_POST['doctor_id']]);
+                $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+                
+                Logger::success("Doctor assigned to course", [
+                    'doctor_id' => $_POST['doctor_id'],
+                    'doctor_name' => $info['doctor_name'] ?? 'N/A',
+                    'course_id' => $_POST['course_id'],
+                    'course_code' => $info['course_code'] ?? 'N/A',
+                    'course_name' => $info['course_name'] ?? 'N/A'
+                ], 'course_management');
+                
                 header('Location: it_courses.php?message=' . urlencode('Doctor assigned successfully') . '&type=success');
                 exit;
             } else {
@@ -60,8 +79,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'remove-doctor' && isset($_POST['course_id']) && isset($_POST['doctor_id'])) {
         try {
+            // Get info for logging before deletion
+            $infoStmt = $db->prepare("
+                SELECT c.course_code, c.course_name, CONCAT(d.first_name, ' ', d.last_name) as doctor_name
+                FROM courses c, doctors d
+                WHERE c.id = ? AND d.id = ?
+            ");
+            $infoStmt->execute([$_POST['course_id'], $_POST['doctor_id']]);
+            $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            
             $stmt = $db->prepare("DELETE FROM doctor_courses WHERE doctor_id = ? AND course_id = ?");
             $stmt->execute([$_POST['doctor_id'], $_POST['course_id']]);
+            
+            Logger::warning("Doctor removed from course", [
+                'doctor_id' => $_POST['doctor_id'],
+                'doctor_name' => $info['doctor_name'] ?? 'N/A',
+                'course_id' => $_POST['course_id'],
+                'course_code' => $info['course_code'] ?? 'N/A',
+                'course_name' => $info['course_name'] ?? 'N/A'
+            ], 'course_management');
+            
             header('Location: it_courses.php?message=' . urlencode('Doctor removed successfully') . '&type=success');
             exit;
         } catch (Exception $e) {
@@ -70,44 +107,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'enroll-student' && isset($_POST['course_id']) && isset($_POST['student_id'])) {
         try {
-            // Check if enrollment already exists
-            $checkStmt = $db->prepare("SELECT COUNT(*) FROM student_courses WHERE student_id = ? AND course_id = ?");
-            $checkStmt->execute([$_POST['student_id'], $_POST['course_id']]);
+            // Check if status column exists in the table
+            $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
+            $hasStatusColumn = !empty($columns);
             
-            if ($checkStmt->fetchColumn() == 0) {
-                // Check if status column exists in the table
-                $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
-                $hasStatusColumn = !empty($columns);
-                
-                if ($hasStatusColumn) {
-                    $status = $_POST['enrollment_status'] ?? 'taking';
-                    $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, status, enrolled_at) VALUES (?, ?, ?, NOW())");
-                    $stmt->execute([$_POST['student_id'], $_POST['course_id'], $status]);
-                } else {
-                    // Use enrolled_at column if it exists, otherwise use created_at
-                    try {
-                        $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, enrolled_at) VALUES (?, ?, NOW())");
-                        $stmt->execute([$_POST['student_id'], $_POST['course_id']]);
-                    } catch (Exception $e2) {
-                        // Fallback to created_at if enrolled_at doesn't exist
-                        $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, created_at) VALUES (?, ?, NOW())");
-                        $stmt->execute([$_POST['student_id'], $_POST['course_id']]);
-                    }
-                }
-                header('Location: it_courses.php?message=' . urlencode('Student enrolled successfully') . '&type=success');
-                exit;
+            $status = $_POST['enrollment_status'] ?? 'taking';
+            $courseId = (int)$_POST['course_id'];
+            $studentIds = [];
+            
+            // Handle both single student and multiple students
+            if (is_array($_POST['student_id'])) {
+                $studentIds = array_map('intval', $_POST['student_id']);
             } else {
-                header('Location: it_courses.php?message=' . urlencode('Student is already enrolled in this course') . '&type=warning');
-                exit;
+                $studentIds = [(int)$_POST['student_id']];
             }
+            
+            $enrolled = 0;
+            $skipped = 0;
+            $errors = [];
+            
+            foreach ($studentIds as $studentId) {
+                // Check if enrollment already exists
+                $checkStmt = $db->prepare("SELECT COUNT(*) FROM student_courses WHERE student_id = ? AND course_id = ?");
+                $checkStmt->execute([$studentId, $courseId]);
+                
+                if ($checkStmt->fetchColumn() == 0) {
+                    try {
+                        if ($hasStatusColumn) {
+                            $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, status, enrolled_at) VALUES (?, ?, ?, NOW())");
+                            $stmt->execute([$studentId, $courseId, $status]);
+                        } else {
+                            // Use enrolled_at column if it exists, otherwise use created_at
+                            try {
+                                $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, enrolled_at) VALUES (?, ?, NOW())");
+                                $stmt->execute([$studentId, $courseId]);
+                            } catch (Exception $e2) {
+                                // Fallback to created_at if enrolled_at doesn't exist
+                                $stmt = $db->prepare("INSERT INTO student_courses (student_id, course_id, created_at) VALUES (?, ?, NOW())");
+                                $stmt->execute([$studentId, $courseId]);
+                            }
+                        }
+                        $enrolled++;
+                        
+                        // Get info for logging
+                        $infoStmt = $db->prepare("
+                            SELECT c.course_code, c.course_name, CONCAT(st.first_name, ' ', st.last_name) as student_name
+                            FROM courses c, students st
+                            WHERE c.id = ? AND st.id = ?
+                        ");
+                        $infoStmt->execute([$courseId, $studentId]);
+                        $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        Logger::success("Student enrolled in course (IT direct enrollment)", [
+                            'student_id' => $studentId,
+                            'student_name' => $info['student_name'] ?? 'N/A',
+                            'course_id' => $courseId,
+                            'course_code' => $info['course_code'] ?? 'N/A',
+                            'course_name' => $info['course_name'] ?? 'N/A',
+                            'status' => $status
+                        ], 'course_management');
+                    } catch (Exception $e) {
+                        $errors[] = "Error enrolling student ID $studentId: " . $e->getMessage();
+                        Logger::error("Error enrolling student in course", [
+                            'student_id' => $studentId,
+                            'course_id' => $courseId,
+                            'error' => $e->getMessage()
+                        ], 'course_management');
+                    }
+                } else {
+                    $skipped++;
+                }
+            }
+            
+            if (count($studentIds) === 1) {
+                // Single student enrollment
+                if ($enrolled > 0) {
+                    header('Location: it_courses.php?message=' . urlencode('Student enrolled successfully') . '&type=success');
+                } elseif ($skipped > 0) {
+                    header('Location: it_courses.php?message=' . urlencode('Student is already enrolled in this course') . '&type=warning');
+                } else {
+                    header('Location: it_courses.php?message=' . urlencode(implode(', ', $errors)) . '&type=error');
+                }
+            } else {
+                // Bulk enrollment
+                $message = "$enrolled student(s) enrolled successfully";
+                if ($skipped > 0) {
+                    $message .= ", $skipped already enrolled";
+                }
+                if (!empty($errors)) {
+                    $message .= ". Errors: " . implode(', ', $errors);
+                }
+                $messageType = !empty($errors) ? 'warning' : 'success';
+                header('Location: it_courses.php?message=' . urlencode($message) . '&type=' . $messageType);
+            }
+            exit;
         } catch (Exception $e) {
             header('Location: it_courses.php?message=' . urlencode('Error enrolling student: ' . $e->getMessage()) . '&type=error');
             exit;
         }
     } elseif ($action === 'remove-student' && isset($_POST['course_id']) && isset($_POST['student_id'])) {
         try {
+            // Get info for logging before deletion
+            $infoStmt = $db->prepare("
+                SELECT c.course_code, c.course_name, CONCAT(st.first_name, ' ', st.last_name) as student_name
+                FROM courses c, students st
+                WHERE c.id = ? AND st.id = ?
+            ");
+            $infoStmt->execute([$_POST['course_id'], $_POST['student_id']]);
+            $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            
             $stmt = $db->prepare("DELETE FROM student_courses WHERE student_id = ? AND course_id = ?");
             $stmt->execute([$_POST['student_id'], $_POST['course_id']]);
+            
+            Logger::warning("Student removed from course", [
+                'student_id' => $_POST['student_id'],
+                'student_name' => $info['student_name'] ?? 'N/A',
+                'course_id' => $_POST['course_id'],
+                'course_code' => $info['course_code'] ?? 'N/A',
+                'course_name' => $info['course_name'] ?? 'N/A'
+            ], 'course_management');
+            
             header('Location: it_courses.php?message=' . urlencode('Student removed successfully') . '&type=success');
             exit;
         } catch (Exception $e) {
@@ -265,9 +384,6 @@ try {
             <a href="it_enrollments.php" class="nav-item">
                 <i class="fas fa-user-check"></i> Enrollment Requests
             </a>
-            <a href="it_backups.php" class="nav-item">
-                <i class="fas fa-database"></i> Backups & Restores
-            </a>
             <a href="it_logs.php" class="nav-item">
                 <i class="fas fa-file-alt"></i> System Logs
             </a>
@@ -362,7 +478,7 @@ try {
                                         <i class="fas fa-user-md"></i> Assign Doctor
                                     </button>
                                     <button class="btn btn-success" onclick="showEnrollStudentModal(<?php echo $course['id']; ?>)">
-                                        <i class="fas fa-user-plus"></i> Enroll Student
+                                        <i class="fas fa-user-plus"></i> Enroll Student(s)
                                     </button>
                                 </div>
                             </div>
@@ -530,9 +646,9 @@ try {
 
     <!-- Enroll Student Modal -->
     <div id="enrollStudentModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h2>Enroll Student to Course</h2>
+                <h2>Enroll Student(s) to Course</h2>
                 <button class="modal-close" onclick="closeEnrollStudentModal()">
                     <i class="fas fa-times"></i>
                 </button>
@@ -542,15 +658,37 @@ try {
                     <input type="hidden" name="action" value="enroll-student">
                     <input type="hidden" id="enrollStudentCourseId" name="course_id">
                     <div class="form-group">
-                        <label class="form-label">Select Student <span style="color: var(--error-color);">*</span></label>
-                        <select name="student_id" class="form-input" required>
-                            <option value="">Select a student...</option>
-                            <?php foreach ($students as $student): ?>
-                                <option value="<?php echo $student['id']; ?>">
-                                    <?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?> - <?php echo htmlspecialchars($student['student_number'] ?? 'N/A'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label class="form-label" style="margin: 0;">Select Student(s) <span style="color: var(--error-color);">*</span></label>
+                            <button type="button" class="btn btn-outline" onclick="toggleSelectAllStudents()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                                <i class="fas fa-check-square" id="selectAllIcon"></i> <span id="selectAllText">Select All</span>
+                            </button>
+                        </div>
+                        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; max-height: 400px; overflow-y: auto; background-color: var(--surface-color);">
+                            <?php if (empty($students)): ?>
+                                <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No students available</p>
+                            <?php else: ?>
+                                <?php foreach ($students as $student): ?>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" 
+                                           onmouseover="this.style.backgroundColor='rgba(var(--primary-color-rgb), 0.1)'"
+                                           onmouseout="this.style.backgroundColor='transparent'">
+                                        <input type="checkbox" name="student_id[]" value="<?php echo $student['id']; ?>" class="student-checkbox" onchange="updateSelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 500; color: var(--text-primary);">
+                                                <?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?>
+                                            </div>
+                                            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                                ID: <?php echo htmlspecialchars($student['student_number'] ?? 'N/A'); ?> 
+                                                • <?php echo htmlspecialchars($student['email'] ?? ''); ?>
+                                            </div>
+                                        </div>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                        <small style="display: block; color: var(--text-secondary); margin-top: 0.5rem;">
+                            <i class="fas fa-info-circle"></i> Selected: <strong id="selectedCount" style="color: var(--primary-color);">0</strong> student(s)
+                        </small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Status</label>
@@ -561,7 +699,9 @@ try {
                     </div>
                     <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
                         <button type="button" class="btn btn-outline" onclick="closeEnrollStudentModal()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Enroll Student</button>
+                        <button type="submit" class="btn btn-primary" id="enrollSubmitBtn" disabled>
+                            <i class="fas fa-user-plus"></i> Enroll Student(s)
+                        </button>
                     </div>
                 </form>
             </div>
@@ -626,7 +766,84 @@ try {
         function closeEnrollStudentModal() {
             document.getElementById('enrollStudentModal').classList.remove('active');
             document.getElementById('enrollStudentForm').reset();
+            document.getElementById('selectedCount').textContent = '0';
+            allStudentsSelected = false;
+            updateSelectAllButton();
         }
+
+        let allStudentsSelected = false;
+
+        function toggleSelectAllStudents() {
+            const checkboxes = document.querySelectorAll('.student-checkbox');
+            allStudentsSelected = !allStudentsSelected;
+            
+            checkboxes.forEach(cb => {
+                cb.checked = allStudentsSelected;
+            });
+            
+            updateSelectedCount();
+            updateSelectAllButton();
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.student-checkbox:checked');
+            const count = checkboxes.length;
+            document.getElementById('selectedCount').textContent = count;
+            
+            // Enable/disable submit button
+            const submitBtn = document.getElementById('enrollSubmitBtn');
+            if (submitBtn) {
+                submitBtn.disabled = count === 0;
+            }
+            
+            // Update select all button state
+            const allCheckboxes = document.querySelectorAll('.student-checkbox');
+            if (allCheckboxes.length > 0) {
+                allStudentsSelected = count === allCheckboxes.length;
+                updateSelectAllButton();
+            }
+        }
+
+        function updateSelectAllButton() {
+            const icon = document.getElementById('selectAllIcon');
+            const text = document.getElementById('selectAllText');
+            if (icon && text) {
+                if (allStudentsSelected) {
+                    icon.className = 'fas fa-square';
+                    text.textContent = 'Deselect All';
+                } else {
+                    icon.className = 'fas fa-check-square';
+                    text.textContent = 'Select All';
+                }
+            }
+        }
+
+        // Initialize count on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSelectedCount();
+            
+            // Add form validation
+            const enrollForm = document.getElementById('enrollStudentForm');
+            if (enrollForm) {
+                enrollForm.addEventListener('submit', function(e) {
+                    const checkboxes = document.querySelectorAll('.student-checkbox:checked');
+                    if (checkboxes.length === 0) {
+                        e.preventDefault();
+                        Toastify({
+                            text: 'Please select at least one student to enroll',
+                            duration: 3000,
+                            gravity: "top",
+                            position: "right",
+                            style: {
+                                background: '#f59e0b',
+                            },
+                            close: true,
+                        }).showToast();
+                        return false;
+                    }
+                });
+            }
+        });
 
         // Close modals on overlay click
         document.addEventListener('click', function(e) {

@@ -20,8 +20,6 @@ $db = Database::getInstance()->getConnection();
 $stats = [
     'total_sections' => 0,
     'pending_enrollments' => 0,
-    'total_backups' => 0,
-    'last_backup' => 'Never',
     'critical_logs' => 0
 ];
 
@@ -43,23 +41,7 @@ try {
         }
     }
     
-    // Total backups (placeholder - you may have a backups table)
-    try {
-        $stmt = $db->query("SELECT COUNT(*) as cnt FROM backups");
-        $stats['total_backups'] = (int)$stmt->fetchColumn();
-        
-        // Get last backup
-        $stmt = $db->query("SELECT created_at FROM backups ORDER BY created_at DESC LIMIT 1");
-        $lastBackup = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($lastBackup) {
-            $stats['last_backup'] = date('M j, Y g:i A', strtotime($lastBackup['created_at']));
-        }
-    } catch (Exception $e) {
-        // Backups table doesn't exist yet
-        $stats['total_backups'] = 0;
-    }
-    
-    // Critical logs (placeholder)
+    // Critical logs
     try {
         $stmt = $db->query("SELECT COUNT(*) as cnt FROM system_logs WHERE level IN ('error', 'critical') AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
         $stats['critical_logs'] = (int)$stmt->fetchColumn();
@@ -100,9 +82,6 @@ try {
             <a href="it_enrollments.php" class="nav-item">
                 <i class="fas fa-user-check"></i> Enrollment Requests
             </a>
-            <a href="it_backups.php" class="nav-item">
-                <i class="fas fa-database"></i> Backups & Restores
-            </a>
             <a href="it_logs.php" class="nav-item">
                 <i class="fas fa-file-alt"></i> System Logs
             </a>
@@ -124,15 +103,9 @@ try {
                     <h1 style="margin: 0; color: var(--text-primary);">IT Dashboard</h1>
                     <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary);">System administration and schedule management.</p>
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <div style="text-align: right;">
-                        <div style="font-size: 0.9rem; color: var(--text-secondary);">System Status</div>
-                        <div style="font-size: 1rem; font-weight: 700; color: var(--success-color);">Online</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 0.9rem; color: var(--text-secondary);">Last Backup</div>
-                        <div style="font-size: 1rem; font-weight: 700; color: var(--primary-color);"><?php echo htmlspecialchars($stats['last_backup']); ?></div>
-                    </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.9rem; color: var(--text-secondary);">System Status</div>
+                    <div style="font-size: 1rem; font-weight: 700; color: var(--success-color);">Online</div>
                 </div>
             </div>
         </header>
@@ -141,7 +114,7 @@ try {
         <div class="content-body">
             <!-- System Overview -->
             <section class="system-overview" style="margin-bottom: 2rem;">
-                <div class="grid grid-4">
+                <div class="grid grid-3">
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-calendar-check"></i>
@@ -157,14 +130,6 @@ try {
                         <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($stats['pending_enrollments']); ?></div>
                         <div style="color: var(--text-secondary);">Pending Enrollments</div>
                         <div style="font-size: 0.8rem; color: var(--warning-color); margin-top: 0.25rem;"><?php echo $stats['pending_enrollments'] > 0 ? 'Requires attention' : 'All processed'; ?></div>
-                    </div>
-                    <div class="card" style="text-align: center; padding: 1.5rem;">
-                        <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo htmlspecialchars($stats['total_backups']); ?></div>
-                        <div style="color: var(--text-secondary);">System Backups</div>
-                        <div style="font-size: 0.8rem; color: var(--success-color); margin-top: 0.25rem;"><?php echo $stats['total_backups'] > 0 ? 'All systems operational' : 'No backups yet'; ?></div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--error-color); margin-bottom: 0.5rem;">
@@ -231,16 +196,6 @@ try {
                                     <div style="font-size: 0.8rem; color: var(--text-secondary);">Response: &lt;10ms</div>
                                 </div>
                             </div>
-                            <div class="status-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border-color);">
-                                <div>
-                                    <h4 style="margin: 0 0 0.25rem 0; color: var(--text-primary);">Backup System</h4>
-                                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">Automated backups</p>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.9rem; color: var(--success-color); font-weight: 500;">Active</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Next: Today 2:00 AM</div>
-                                </div>
-                            </div>
                             <div class="status-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem;">
                                 <div>
                                     <h4 style="margin: 0 0 0.25rem 0; color: var(--text-primary);">Log System</h4>
@@ -278,10 +233,6 @@ try {
                             <i class="fas fa-check-circle" style="font-size: 2rem;"></i>
                             <span>Review Enrollments</span>
                         </button>
-                        <button class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="window.location.href='it_backups.php'">
-                            <i class="fas fa-download" style="font-size: 2rem;"></i>
-                            <span>Backup Now</span>
-                        </button>
                         <button class="btn btn-outline" style="padding: 1.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onclick="window.location.href='it_logs.php'">
                             <i class="fas fa-search" style="font-size: 2rem;"></i>
                             <span>View Logs</span>
@@ -300,18 +251,6 @@ try {
                         </h2>
                     </div>
                     <div class="activity-list" id="recentActivity">
-                        <div class="activity-item" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border-color);">
-                            <div style="width: 40px; height: 40px; background-color: var(--success-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
-                                <i class="fas fa-check"></i>
-                            </div>
-                            <div style="flex: 1;">
-                                <h4 style="margin: 0 0 0.25rem 0; color: var(--text-primary);">Backup Completed</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">System backup completed successfully</p>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">2 hours ago</div>
-                            </div>
-                        </div>
                         <div class="activity-item" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border-color);">
                             <div style="width: 40px; height: 40px; background-color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
                                 <i class="fas fa-calendar"></i>
