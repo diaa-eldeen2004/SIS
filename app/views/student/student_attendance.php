@@ -4,13 +4,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance - Student Portal</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+<?php
+session_start();
+require_once __DIR__ . '/../../core/Database.php';
+$db = Database::getInstance()->getConnection();
+
+// Get current student ID from session
+$studentId = null;
+if (isset($_SESSION['user']['id'])) {
+    try {
+        $userStmt = $db->prepare("SELECT id FROM students WHERE user_id = ?");
+        $userStmt->execute([$_SESSION['user']['id']]);
+        $student = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if ($student) {
+            $studentId = $student['id'];
+        }
+    } catch (Exception $e) {
+        error_log("Error getting student_id: " . $e->getMessage());
+    }
+}
+
+// Initialize attendance stats
+$attendanceStats = [
+    'overall_rate' => 0,
+    'classes_attended' => 0,
+    'classes_missed' => 0,
+    'late_arrivals' => 0
+];
+
+$attendanceRecords = [];
+$enrolledCourses = [];
+
+if ($studentId) {
+    try {
+        // Get attendance statistics
+        $statsStmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present,
+                SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent,
+                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late
+            FROM student_attendance
+            WHERE student_id = ?
+        ");
+        $statsStmt->execute([$studentId]);
+        $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($stats && $stats['total'] > 0) {
+            $attendanceStats['classes_attended'] = (int)$stats['present'];
+            $attendanceStats['classes_missed'] = (int)$stats['absent'];
+            $attendanceStats['late_arrivals'] = (int)$stats['late'];
+            $attendanceStats['overall_rate'] = round(($stats['present'] / $stats['total']) * 100);
+        }
+        
+        // Get attendance records with course info
+        $recordsStmt = $db->prepare("
+            SELECT sa.*, c.course_code, c.course_name
+            FROM student_attendance sa
+            LEFT JOIN courses c ON sa.course_id = c.id
+            WHERE sa.student_id = ?
+            ORDER BY sa.date DESC, sa.recorded_at DESC
+            LIMIT 100
+        ");
+        $recordsStmt->execute([$studentId]);
+        $attendanceRecords = $recordsStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get enrolled courses for filter
+        $coursesStmt = $db->prepare("
+            SELECT DISTINCT c.id, c.course_code, c.course_name
+            FROM student_courses sc
+            LEFT JOIN courses c ON sc.course_id = c.id
+            WHERE sc.student_id = ? AND c.id IS NOT NULL
+            ORDER BY c.course_code
+        ");
+        $coursesStmt->execute([$studentId]);
+        $enrolledCourses = $coursesStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+    } catch (Exception $e) {
+        error_log("Error loading attendance: " . $e->getMessage());
+    }
+}
+?>
     <!-- Sidebar Toggle Button -->
     <button class="sidebar-toggle" title="Toggle Sidebar">
         <i class="fas fa-bars"></i>
@@ -27,31 +108,34 @@
             <h2><i class="fas fa-graduation-cap"></i> Student Portal</h2>
         </div>
         <nav class="sidebar-nav">
-            <a href="student_dashboard.html" class="nav-item">
+            <a href="student_dashboard.php" class="nav-item">
                 <i class="fas fa-tachometer-alt"></i> Dashboard
             </a>
-            <a href="student_courses.html" class="nav-item">
+            <a href="student_courses.php" class="nav-item">
                 <i class="fas fa-book"></i> Courses
             </a>
-            <a href="student_assignments.html" class="nav-item">
+            <a href="student_schedule.php" class="nav-item">
+                <i class="fas fa-calendar-alt"></i> Official Schedule
+            </a>
+            <a href="student_assignments.php" class="nav-item">
                 <i class="fas fa-tasks"></i> Assignments
             </a>
-            <a href="student_attendance.html" class="nav-item active">
+            <a href="student_attendance.php" class="nav-item active">
                 <i class="fas fa-calendar-check"></i> Attendance
             </a>
-            <a href="student_calendar.html" class="nav-item">
+            <a href="student_calendar.php" class="nav-item">
                 <i class="fas fa-calendar-alt"></i> Calendar
             </a>
-            <a href="student_notifications.html" class="nav-item">
+            <a href="student_notifications.php" class="nav-item">
                 <i class="fas fa-bell"></i> Notifications
             </a>
-            <a href="student_profile.html" class="nav-item">
+            <a href="student_profile.php" class="nav-item">
                 <i class="fas fa-user"></i> Profile
             </a>
-            <a href="../app/settings.html" class="nav-item">
+            <a href="../settings.php" class="nav-item">
                 <i class="fas fa-cog"></i> Settings
             </a>
-            <a href="../app/logout.html" class="nav-item">
+            <a href="../auth/logout.php" class="nav-item">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </nav>
@@ -86,28 +170,28 @@
                         <div style="font-size: 2.5rem; color: var(--success-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-check-circle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">95%</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $attendanceStats['overall_rate']; ?>%</div>
                         <div style="color: var(--text-secondary);">Overall Attendance</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--primary-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-calendar-check"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">38</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $attendanceStats['classes_attended']; ?></div>
                         <div style="color: var(--text-secondary);">Classes Attended</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--error-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-times-circle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">2</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $attendanceStats['classes_missed']; ?></div>
                         <div style="color: var(--text-secondary);">Classes Missed</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; color: var(--warning-color); margin-bottom: 0.5rem;">
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
-                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">1</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;"><?php echo $attendanceStats['late_arrivals']; ?></div>
                         <div style="color: var(--text-secondary);">Late Arrivals</div>
                     </div>
                 </div>
@@ -120,10 +204,11 @@
                         <div style="flex: 1; min-width: 200px;">
                             <select class="form-input" id="courseFilter" onchange="filterAttendance()">
                                 <option value="">All Courses</option>
-                                <option value="calculus">Calculus I</option>
-                                <option value="cs101">Computer Science 101</option>
-                                <option value="physics">Physics I</option>
-                                <option value="english">English Literature</option>
+                                <?php foreach ($enrolledCourses as $course): ?>
+                                    <option value="<?php echo htmlspecialchars($course['course_code'] ?? ''); ?>">
+                                        <?php echo htmlspecialchars($course['course_code'] ?? 'N/A'); ?> - <?php echo htmlspecialchars($course['course_name'] ?? ''); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div>
@@ -550,7 +635,7 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="../../js/main.js"></script>
+    <script src="../js/main.js"></script>
     <script>
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {

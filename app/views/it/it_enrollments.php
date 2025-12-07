@@ -43,21 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $infoStmt->execute([$enrollmentId]);
             $enrollmentInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
             
-            // Check if status column supports 'taking' or 'approved'
+            // Ensure status column supports 'pending', 'approved', 'taking'
+            try {
+                $db->exec("ALTER TABLE `student_courses` MODIFY COLUMN `status` ENUM('pending','taking','taken','approved','rejected') DEFAULT 'pending'");
+            } catch (Exception $e) {
+                // Ignore if already updated
+            }
+            
+            // Check if status column exists
             $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
             $hasStatusColumn = !empty($columns);
             
             if ($hasStatusColumn) {
-                // Check what status values are allowed
-                $statusInfo = $db->query("SHOW COLUMNS FROM student_courses WHERE Field = 'status'")->fetch(PDO::FETCH_ASSOC);
-                $allowedValues = $statusInfo['Type'] ?? '';
-                
-                if (strpos($allowedValues, 'approved') !== false) {
-                    $stmt = $db->prepare("UPDATE student_courses SET status = 'approved' WHERE id = ?");
-                } else {
-                    // Default to 'taking' if 'approved' is not available
-                    $stmt = $db->prepare("UPDATE student_courses SET status = 'taking' WHERE id = ?");
-                }
+                // Update status to 'taking' (approved enrollment - student is now taking the course)
+                $stmt = $db->prepare("UPDATE student_courses SET status = 'taking' WHERE id = ?");
                 $stmt->execute([$enrollmentId]);
             } else {
                 // No status column, just update enrolled_at
@@ -98,22 +97,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $infoStmt->execute([$enrollmentId]);
             $enrollmentInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
             
-            // Check if status column supports 'rejected'
+            // Ensure status column supports 'rejected'
+            try {
+                $db->exec("ALTER TABLE `student_courses` MODIFY COLUMN `status` ENUM('pending','taking','taken','approved','rejected') DEFAULT 'pending'");
+            } catch (Exception $e) {
+                // Ignore if already updated
+            }
+            
+            // Check if status column exists
             $columns = $db->query("SHOW COLUMNS FROM student_courses LIKE 'status'")->fetchAll();
             $hasStatusColumn = !empty($columns);
             
             if ($hasStatusColumn) {
-                $statusInfo = $db->query("SHOW COLUMNS FROM student_courses WHERE Field = 'status'")->fetch(PDO::FETCH_ASSOC);
-                $allowedValues = $statusInfo['Type'] ?? '';
-                
-                if (strpos($allowedValues, 'rejected') !== false) {
-                    $stmt = $db->prepare("UPDATE student_courses SET status = 'rejected' WHERE id = ?");
-                    $stmt->execute([$enrollmentId]);
-                } else {
-                    // If rejected status not available, delete the enrollment request
-                    $stmt = $db->prepare("DELETE FROM student_courses WHERE id = ?");
-                    $stmt->execute([$enrollmentId]);
-                }
+                // Update status to 'rejected'
+                $stmt = $db->prepare("UPDATE student_courses SET status = 'rejected' WHERE id = ?");
+                $stmt->execute([$enrollmentId]);
             } else {
                 // No status column, delete the enrollment
                 $stmt = $db->prepare("DELETE FROM student_courses WHERE id = ?");
@@ -206,6 +204,13 @@ $statusFilter = isset($_GET['status']) ? trim($_GET['status']) : '';
 $courseFilter = isset($_GET['course']) ? trim($_GET['course']) : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
+// Ensure status column supports 'pending' FIRST (before checking)
+try {
+    $db->exec("ALTER TABLE `student_courses` MODIFY COLUMN `status` ENUM('pending','taking','taken','approved','rejected') DEFAULT 'pending'");
+} catch (Exception $e) {
+    // Ignore if already updated or column doesn't exist
+}
+
 // Build query for enrollment requests
 $where = "WHERE 1=1";
 $params = [];
@@ -219,14 +224,20 @@ try {
 }
 
 // Apply status filter if provided
-if ($hasStatusColumn && $statusFilter !== '') {
-    if ($statusFilter === 'pending') {
+if ($hasStatusColumn) {
+    if ($statusFilter === '') {
+        // Default: Show ALL enrollments (no filter when "All Status" is selected)
+        // This ensures pending requests are visible to IT
+    } elseif ($statusFilter === 'pending') {
         // Show pending or null status
         $where .= " AND (sc.status = 'pending' OR sc.status IS NULL)";
     } else {
         $where .= " AND sc.status = ?";
         $params[] = $statusFilter;
     }
+} else {
+    // If no status column, show all enrollments
+    // This ensures we see enrollment requests even if status column doesn't exist
 }
 
 if ($courseFilter !== '') {
@@ -283,7 +294,6 @@ try {
     // Get enrollments
     $selectFields = "sc.id, sc.student_id, sc.course_id, sc.status";
     $joinSections = "";
-    $orderBy = "sc.enrolled_at DESC";
     
     // Check for section_id and requested_at columns
     $columns = $db->query("SHOW COLUMNS FROM student_courses")->fetchAll(PDO::FETCH_COLUMN);
@@ -298,12 +308,28 @@ try {
     
     if ($hasRequestedAt) {
         $selectFields .= ", sc.requested_at";
-        $orderBy = "sc.requested_at DESC";
     } else {
         $selectFields .= ", sc.enrolled_at as requested_at";
     }
     
-    $stmt = $db->prepare("
+    // Build ORDER BY to prioritize pending requests
+    if ($hasStatusColumn) {
+        // Order by status (pending first), then by date
+        if ($hasRequestedAt) {
+            $orderBy = "CASE WHEN sc.status = 'pending' OR sc.status IS NULL THEN 0 ELSE 1 END, sc.requested_at DESC";
+        } else {
+            $orderBy = "CASE WHEN sc.status = 'pending' OR sc.status IS NULL THEN 0 ELSE 1 END, sc.enrolled_at DESC";
+        }
+    } else {
+        // No status column, just order by date
+        if ($hasRequestedAt) {
+            $orderBy = "sc.requested_at DESC";
+        } else {
+            $orderBy = "sc.enrolled_at DESC";
+        }
+    }
+    
+    $sql = "
         SELECT $selectFields,
                CONCAT(st.first_name, ' ', st.last_name) as student_name,
                st.student_number,
@@ -317,9 +343,28 @@ try {
         $where
         ORDER BY $orderBy
         LIMIT 100
-    ");
+    ";
+    
+    // Debug logging
+    error_log("=== IT ENROLLMENTS QUERY ===");
+    error_log("SQL: " . $sql);
+    error_log("Params: " . json_encode($params));
+    error_log("WHERE clause: " . $where);
+    
+    $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    error_log("IT Enrollments Found: " . count($enrollments));
+    
+    // Debug: Log pending count
+    $pendingCount = 0;
+    foreach ($enrollments as $enrollment) {
+        if (empty($enrollment['status']) || $enrollment['status'] === 'pending') {
+            $pendingCount++;
+        }
+    }
+    error_log("Pending requests in results: " . $pendingCount);
     
 } catch (PDOException $e) {
     error_log("Error loading enrollments: " . $e->getMessage());

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calendar - Student Portal</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,31 +27,34 @@
             <h2><i class="fas fa-graduation-cap"></i> Student Portal</h2>
         </div>
         <nav class="sidebar-nav">
-            <a href="student_dashboard.html" class="nav-item">
+            <a href="student_dashboard.php" class="nav-item">
                 <i class="fas fa-tachometer-alt"></i> Dashboard
             </a>
-            <a href="student_courses.html" class="nav-item">
+            <a href="student_courses.php" class="nav-item">
                 <i class="fas fa-book"></i> Courses
             </a>
-            <a href="student_assignments.html" class="nav-item">
+            <a href="student_schedule.php" class="nav-item">
+                <i class="fas fa-calendar-alt"></i> Official Schedule
+            </a>
+            <a href="student_assignments.php" class="nav-item">
                 <i class="fas fa-tasks"></i> Assignments
             </a>
-            <a href="student_attendance.html" class="nav-item">
+            <a href="student_attendance.php" class="nav-item">
                 <i class="fas fa-calendar-check"></i> Attendance
             </a>
-            <a href="student_calendar.html" class="nav-item active">
+            <a href="student_calendar.php" class="nav-item active">
                 <i class="fas fa-calendar-alt"></i> Calendar
             </a>
-            <a href="student_notifications.html" class="nav-item">
+            <a href="student_notifications.php" class="nav-item">
                 <i class="fas fa-bell"></i> Notifications
             </a>
-            <a href="student_profile.html" class="nav-item">
+            <a href="student_profile.php" class="nav-item">
                 <i class="fas fa-user"></i> Profile
             </a>
-            <a href="../app/settings.html" class="nav-item">
+            <a href="../settings.php" class="nav-item">
                 <i class="fas fa-cog"></i> Settings
             </a>
-            <a href="../app/logout.html" class="nav-item">
+            <a href="../auth/logout.php" class="nav-item">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </nav>
@@ -340,7 +343,7 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="../../js/main.js"></script>
+    <script src="../js/main.js"></script>
     <script>
         let currentView = 'month';
         let currentDate = new Date(2024, 8, 15); // September 15, 2024
