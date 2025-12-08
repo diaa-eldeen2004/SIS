@@ -147,6 +147,11 @@ body {
   cursor: pointer;
   box-shadow: 0 4px 12px var(--shadow-color);
   transition: all 0.3s ease;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-toggle:hover {
@@ -154,8 +159,20 @@ body {
   transform: scale(1.1);
 }
 
+.sidebar-toggle:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 .sidebar-toggle i {
   font-size: 1.2rem;
+}
+
+/* Adjust toggle button position when sidebar is collapsed on mobile */
+@media (max-width: 768px) {
+  .sidebar.collapsed ~ .sidebar-toggle {
+    left: 1rem;
+  }
 }
 
 /* Theme Toggle Button */
